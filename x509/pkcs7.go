@@ -331,7 +331,7 @@ func getOIDForHash(hashType Hash) (asn1.ObjectIdentifier, error) {
 	case SHA256:
 		return oidSHA256, nil
 	case SM3:
-		return oidSM3, nil
+		return oidHashSM3, nil
 	}
 	return nil, ErrPKCS7UnsupportedAlgorithm
 }
