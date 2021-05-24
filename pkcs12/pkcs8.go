@@ -84,7 +84,12 @@ func ParsePKCS8PrivateKey(der []byte) (key interface{}, err error) {
 			return nil, errors.New("x509: failed to parse EC private key embedded in PKCS#8: " + err.Error())
 		}
 		return key, nil
-
+	case privKey.Algo.Algorithm.Equal(oidPublicKeyRSA):
+		bytes := privKey.Algo.Parameters.FullBytes
+		if key, err = x509.ParsePKCS8PrivateKey(bytes); err != nil {
+			return nil, errors.New("pkcs12: error parsing PKCS#8 private key: " + err.Error())
+		}
+		return key, nil
 	default:
 		return nil, fmt.Errorf("x509: PKCS#8 wrapping contained private key with unknown algorithm: %v", privKey.Algo.Algorithm)
 	}
