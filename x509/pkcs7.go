@@ -324,6 +324,18 @@ func getHashForOID(oid asn1.ObjectIdentifier) (Hash, error) {
 	return Hash(0), ErrPKCS7UnsupportedAlgorithm
 }
 
+func getOIDForHash(hashType Hash) (asn1.ObjectIdentifier, error) {
+	switch hashType {
+	case SHA1:
+		return oidDigestAlgorithmSHA1, nil
+	case SHA256:
+		return oidSHA256, nil
+	case SM3:
+		return oidSM3, nil
+	}
+	return nil, ErrPKCS7UnsupportedAlgorithm
+}
+
 // GetOnlySigner returns an x509.Certificate for the first signer of the signed
 // data payload. If there are more or less than one signer, nil is returned
 func (p7 *PKCS7) GetOnlySigner() *Certificate {
@@ -572,6 +584,50 @@ func NewSignedData(data []byte) (*SignedData, error) {
 		DigestAlgorithmIdentifiers: []pkix.AlgorithmIdentifier{digAlg},
 	}
 	return &SignedData{sd: sd, messageDigest: md}, nil
+}
+
+// NewPKCS7SignedData initializes a PKCS7SignedData with content
+func NewPKCS7SignedData(data []byte, pkcs1SignedData []byte, hashType Hash, signCert *Certificate) (*SignedData, error) {
+	var ci contentInfo
+	if data != nil {
+		content, err := asn1.Marshal(data)
+		if err != nil {
+			return nil, err
+		}
+		ci = contentInfo{
+			ContentType: oidData,
+			Content:     asn1.RawValue{Class: 2, Tag: 0, Bytes: content, IsCompound: true},
+		}
+	} else {
+		ci = contentInfo{ContentType: oidData}
+	}
+	algOid, err := getOIDForHash(hashType)
+	if err != nil {
+		return nil, err
+	}
+	digAlg := pkix.AlgorithmIdentifier{
+		Algorithm: algOid,
+	}
+	sd := signedData{
+		ContentInfo:                ci,
+		Version:                    1,
+		DigestAlgorithmIdentifiers: []pkix.AlgorithmIdentifier{digAlg},
+	}
+	ias, err := cert2issuerAndSerial(signCert)
+	if err != nil {
+		return nil, err
+	}
+	signer := signerInfo{
+		AuthenticatedAttributes:   nil,
+		DigestAlgorithm:           pkix.AlgorithmIdentifier{Algorithm: algOid},
+		DigestEncryptionAlgorithm: pkix.AlgorithmIdentifier{Algorithm: oidSignatureSM2WithSM3},
+		IssuerAndSerialNumber:     ias,
+		EncryptedDigest:           pkcs1SignedData,
+		Version:                   1,
+	}
+	sd.SignerInfos = []signerInfo{signer}
+
+	return &SignedData{sd: sd, certs: []*Certificate{signCert}, messageDigest: nil}, nil
 }
 
 type attributes struct {
