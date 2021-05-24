@@ -85,7 +85,7 @@ func ParsePKCS8PrivateKey(der []byte) (key interface{}, err error) {
 		}
 		return key, nil
 	case privKey.Algo.Algorithm.Equal(oidPublicKeyRSA):
-		if key, err = x509.ParsePKCS8PrivateKey(privKey.PrivateKey); err != nil {
+		if key, err = x509.ParsePKCS1PrivateKey(privKey.PrivateKey); err != nil {
 			return nil, errors.New("pkcs12: error parsing PKCS#8 private key: " + err.Error())
 		}
 		return key, nil
