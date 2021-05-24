@@ -14,8 +14,8 @@ import (
 	"io"
 	"math/big"
 
-	"github.com/tjfoc/gmsm/sm2"
-	"github.com/tjfoc/gmsm/x509"
+	"github.com/roy19831015/gmsm/sm2"
+	"github.com/roy19831015/gmsm/x509"
 
 	"golang.org/x/crypto/curve25519"
 )
@@ -429,7 +429,7 @@ func (ka *eccKeyAgreementGM) generateClientKeyExchange(config *Config, clientHel
 	}
 	pubKey := ka.encipherCert.PublicKey.(*ecdsa.PublicKey)
 	sm2PubKey := &sm2.PublicKey{Curve: pubKey.Curve, X: pubKey.X, Y: pubKey.Y}
-	encrypted, err := sm2.Encrypt(sm2PubKey, preMasterSecret, config.rand(),0)
+	encrypted, err := sm2.Encrypt(sm2PubKey, preMasterSecret, config.rand(), 0)
 	if err != nil {
 		return nil, nil, err
 	}

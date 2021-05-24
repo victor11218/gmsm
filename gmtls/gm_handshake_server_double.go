@@ -16,8 +16,8 @@ import (
 	"io"
 	"sync/atomic"
 
-	"github.com/tjfoc/gmsm/sm2"
-	"github.com/tjfoc/gmsm/x509"
+	"github.com/roy19831015/gmsm/sm2"
+	"github.com/roy19831015/gmsm/x509"
 )
 
 // serverHandshakeStateGM contains details of a server handshake in progress.
