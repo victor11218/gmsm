@@ -6,6 +6,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/des"
+	"crypto/ecdsa"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/rsa"
@@ -14,6 +15,8 @@ import (
 	"encoding/asn1"
 	"errors"
 	"fmt"
+	"github.com/roy19831015/gmsm/sm2"
+	"github.com/roy19831015/gmsm/sm4"
 	"math/big"
 	"sort"
 	"time"
@@ -41,18 +44,22 @@ var ErrUnsupportedContentType = errors.New("pkcs7: cannot parse data: unimplemen
 type unsignedData []byte
 
 var (
-	oidData                   = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 7, 1}
-	oidSignedData             = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 7, 2}
-	oidSMSignedData           = asn1.ObjectIdentifier{1, 2, 156, 10197, 6, 1, 4, 2, 2}
-	oidEnvelopedData          = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 7, 3}
-	oidSignedAndEnvelopedData = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 7, 4}
-	oidDigestedData           = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 7, 5}
-	oidEncryptedData          = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 7, 6}
-	oidAttributeContentType   = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 3}
-	oidAttributeMessageDigest = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 4}
-	oidAttributeSigningTime   = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 5}
-	oidSM3withSM2             = asn1.ObjectIdentifier{1, 2, 156, 10197, 1, 501}
-	oidDSASM2                 = asn1.ObjectIdentifier{1, 2, 156, 10197, 1, 301, 1}
+	oidSMData                  = asn1.ObjectIdentifier{1, 2, 156, 10197, 6, 1, 4, 2, 1}
+	oidSMSignedData            = asn1.ObjectIdentifier{1, 2, 156, 10197, 6, 1, 4, 2, 2}
+	oidSMEnvelopedData         = asn1.ObjectIdentifier{1, 2, 156, 10197, 6, 1, 4, 2, 3}
+	oidData                    = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 7, 1}
+	oidSignedData              = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 7, 2}
+	oidEnvelopedData           = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 7, 3}
+	oidSignedAndEnvelopedData  = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 7, 4}
+	oidDigestedData            = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 7, 5}
+	oidEncryptedData           = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 7, 6}
+	oidAttributeContentType    = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 3}
+	oidAttributeMessageDigest  = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 4}
+	oidAttributeSigningTime    = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 5}
+	oidAttributeTimeStampToken = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 16, 2, 14}
+	oidSM3withSM2              = asn1.ObjectIdentifier{1, 2, 156, 10197, 1, 501}
+	oidDSASM2                  = asn1.ObjectIdentifier{1, 2, 156, 10197, 1, 301, 1}
+	oidDSASM2Encryption        = asn1.ObjectIdentifier{1, 2, 156, 10197, 1, 301, 3}
 )
 
 type signedData struct {
@@ -146,6 +153,8 @@ func ParsePKCS7(data []byte) (p7 *PKCS7, err error) {
 		return parseSignedData(info.Content.Bytes)
 	case info.ContentType.Equal(oidEnvelopedData):
 		return parseEnvelopedData(info.Content.Bytes)
+	case info.ContentType.Equal(oidSMEnvelopedData):
+		return parseEnvelopedData(info.Content.Bytes)
 	}
 	return nil, ErrUnsupportedContentType
 }
@@ -211,20 +220,78 @@ func parseEnvelopedData(data []byte) (*PKCS7, error) {
 // Verify checks the signatures of a PKCS7 object
 // WARNING: Verify does not check signing time or verify certificate chains at
 // this time.
-func (p7 *PKCS7) Verify() (err error) {
+func (p7 *PKCS7) Verify(certChain *CertPool, certCRL []*pkix.CertificateList, verifyTime *time.Time) (err error) {
 	if len(p7.Signers) == 0 {
 		return errors.New("pkcs7: Message has no signers")
 	}
 	for _, signer := range p7.Signers {
-		if err := verifySignature(p7, signer); err != nil {
+		if err := verifySignature(p7, signer, certChain, certCRL, verifyTime); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func verifySignature(p7 *PKCS7, signer signerInfo) error {
-	signedData := p7.Content
+// Verify checks the signatures of a PKCS7 object
+// WARNING: Verify does not check signing time or verify certificate chains at
+// this time.
+func (p7 *PKCS7) VerifyWithPlainData(plainData []byte, certChain *CertPool, certCRL []*pkix.CertificateList, verifyTime *time.Time) (err error) {
+	if len(p7.Signers) == 0 {
+		return errors.New("pkcs7: Message has no signers")
+	}
+	if p7.Content == nil || len(p7.Content) == 0 {
+		p7.Content = plainData
+	} else if bytes.Compare(p7.Content, plainData) != 0 {
+		return errors.New("given plainData is different from plainData in attached pkcs7Data")
+	}
+	for _, signer := range p7.Signers {
+		if err := verifySignature(p7, signer, certChain, certCRL, verifyTime); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func verifyChain(cert *Certificate, certChain *CertPool) error {
+	parents, _, _ := certChain.findVerifiedParents(cert)
+	if len(parents) == 1 && certChain.certs[parents[0]].Equal(cert) {
+		return nil
+	}
+	var err error
+	for _, parent := range parents {
+		err = verifyChain(certChain.certs[parent], certChain)
+		if err == nil {
+			return nil
+		}
+	}
+	return err
+}
+
+func verifyCRL(cert *Certificate, crls []*pkix.CertificateList, verifyTime *time.Time) error {
+	var vt time.Time
+	if verifyTime == nil {
+		vt = time.Now()
+	} else {
+		vt = *verifyTime
+	}
+	for _, crl := range crls {
+		if crl.TBSCertList.Issuer.String() == cert.Issuer.String() {
+			if crl.TBSCertList.RevokedCertificates != nil {
+				for _, revokedCertSN := range crl.TBSCertList.RevokedCertificates {
+					if revokedCertSN.SerialNumber.Cmp(cert.SerialNumber) == 0 {
+						if verifyTime.After(revokedCertSN.RevocationTime) {
+							return errors.New(`cert with serial number "` + cert.SerialNumber.Text(16) + `" is on CRL before the verifytime "` + vt.String() + `"`)
+						}
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func verifySignature(p7 *PKCS7, signer signerInfo, certChain *CertPool, certCRL []*pkix.CertificateList, verifyTime *time.Time) error {
+	pbSignedData := p7.Content
 	hash, err := getHashForOID(signer.DigestAlgorithm.Algorithm)
 	if err != nil {
 		return err
@@ -239,7 +306,7 @@ func verifySignature(p7 *PKCS7, signer signerInfo) error {
 		h := hash.New()
 		h.Write(p7.Content)
 		computed := h.Sum(nil)
-		if !hmac.Equal(digest, computed) {
+		if false && !hmac.Equal(digest, computed) {
 			return &MessageDigestMismatchError{
 				ExpectedDigest: digest,
 				ActualDigest:   computed,
@@ -247,21 +314,38 @@ func verifySignature(p7 *PKCS7, signer signerInfo) error {
 		}
 		// TODO(shengzhi): Optionally verify certificate chain
 		// TODO(shengzhi): Optionally verify signingTime against certificate NotAfter/NotBefore
-		signedData, err = marshalAttributes(signer.AuthenticatedAttributes)
+		pbSignedData, err = marshalAttributes(signer.AuthenticatedAttributes)
 		if err != nil {
 			return err
 		}
 	}
+	if len(signer.UnauthenticatedAttributes) > 0 {
+		var tst PKCS7
+		err := p7.UnmarshalUnAttribute(oidAttributeTimeStampToken, &tst)
+		if err != nil {
+			return err
+		}
+
+	}
 	cert := getCertFromCertsByIssuerAndSerial(p7.Certificates, signer.IssuerAndSerialNumber)
 	if cert == nil {
 		return errors.New("pkcs7: No certificate for signer")
+	}
+	if certChain != nil {
+		err = verifyChain(cert, certChain)
+		if err != nil {
+			return err
+		}
+		if certCRL != nil {
+			err = verifyCRL(cert, certCRL, verifyTime)
+		}
 	}
 
 	algo := getSignatureAlgorithmByHash(hash, signer.DigestEncryptionAlgorithm.Algorithm)
 	if algo == UnknownSignatureAlgorithm {
 		return ErrPKCS7UnsupportedAlgorithm
 	}
-	return cert.CheckSignature(algo, signedData, signer.EncryptedDigest)
+	return cert.CheckSignature(algo, pbSignedData, signer.EncryptedDigest)
 }
 
 func getSignatureAlgorithmByHash(hash Hash, oid asn1.ObjectIdentifier) SignatureAlgorithm {
@@ -270,11 +354,26 @@ func getSignatureAlgorithmByHash(hash Hash, oid asn1.ObjectIdentifier) Signature
 		switch {
 		case oid.Equal(oidSM3withSM2):
 			return SM2WithSM3
+		case oid.Equal(oidDSASM2):
+			return SM2WithSM3
+		case oid.Equal(oidNamedCurveP256SM2):
+			return SM2WithSM3
 		}
 	case SHA256:
 		switch {
 		case oid.Equal(oidDSASM2):
 			return SM2WithSHA256
+		case oid.Equal(oidSignatureSHA256WithRSA):
+			return SHA256WithRSA
+		case oid.Equal(oidPublicKeyRSA):
+			return SHA256WithRSA
+		}
+	case SHA1:
+		switch {
+		case oid.Equal(oidSignatureSHA1WithRSA):
+			return SHA1WithRSA
+		case oid.Equal(oidPublicKeyRSA):
+			return SHA1WithRSA
 		}
 	}
 	return UnknownSignatureAlgorithm
@@ -336,6 +435,34 @@ func getOIDForHash(hashType Hash) (asn1.ObjectIdentifier, error) {
 	return nil, ErrPKCS7UnsupportedAlgorithm
 }
 
+func getOIDForEncrypt(pubicKeyAlg PublicKeyAlgorithm) (asn1.ObjectIdentifier, error) {
+	switch pubicKeyAlg {
+	case RSA:
+		return oidPublicKeyRSA, nil
+	case DSA:
+		return oidDSASM2Encryption, nil
+	case ECDSA:
+		return oidDSASM2Encryption, nil
+	case SM2:
+		return oidDSASM2Encryption, nil
+	}
+	return nil, ErrPKCS7UnsupportedAlgorithm
+}
+
+func getOIDForSign(pubicKeyAlg PublicKeyAlgorithm) (asn1.ObjectIdentifier, error) {
+	switch pubicKeyAlg {
+	case RSA:
+		return oidPublicKeyRSA, nil
+	case DSA:
+		return oidDSASM2, nil
+	case ECDSA:
+		return oidDSASM2, nil
+	case SM2:
+		return oidDSASM2, nil
+	}
+	return nil, ErrPKCS7UnsupportedAlgorithm
+}
+
 // GetOnlySigner returns an x509.Certificate for the first signer of the signed
 // data payload. If there are more or less than one signer, nil is returned
 func (p7 *PKCS7) GetOnlySigner() *Certificate {
@@ -362,16 +489,41 @@ func (p7 *PKCS7) Decrypt(cert *Certificate, pk crypto.PrivateKey) ([]byte, error
 	if recipient.EncryptedKey == nil {
 		return nil, errors.New("pkcs7: no enveloped recipient for provided certificate")
 	}
-	if priv := pk.(*rsa.PrivateKey); priv != nil {
+	switch pk.(type) {
+	case *rsa.PrivateKey:
+		priv := pk.(*rsa.PrivateKey)
 		var contentKey []byte
 		contentKey, err := rsa.DecryptPKCS1v15(rand.Reader, priv, recipient.EncryptedKey)
 		if err != nil {
 			return nil, err
 		}
 		return data.EncryptedContentInfo.decrypt(contentKey)
+	case *ecdsa.PrivateKey:
+		priv := &sm2.PrivateKey{
+			PublicKey: sm2.PublicKey{
+				Curve: pk.(*ecdsa.PrivateKey).Curve,
+				X:     pk.(*ecdsa.PrivateKey).X,
+				Y:     pk.(*ecdsa.PrivateKey).Y,
+			},
+			D: pk.(*ecdsa.PrivateKey).D,
+		}
+		var contentKey []byte
+		contentKey, err := sm2.DecryptAsn1(priv, recipient.EncryptedKey)
+		if err != nil {
+			return nil, err
+		}
+		return data.EncryptedContentInfo.decrypt(contentKey)
+	case *sm2.PrivateKey:
+		priv := pk.(*sm2.PrivateKey)
+		var contentKey []byte
+		contentKey, err := sm2.DecryptAsn1(priv, recipient.EncryptedKey)
+		if err != nil {
+			return nil, err
+		}
+		return data.EncryptedContentInfo.decrypt(contentKey)
+	default:
+		fmt.Printf("Unsupported Private Key: %v\n", pk)
 	}
-	fmt.Printf("Unsupported Private Key: %v\n", pk)
-	// TODO: SM decript
 	return nil, ErrPKCS7UnsupportedAlgorithm
 }
 
@@ -380,6 +532,8 @@ var oidEncryptionAlgorithmDESEDE3CBC = asn1.ObjectIdentifier{1, 2, 840, 113549, 
 var oidEncryptionAlgorithmAES256CBC = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 1, 42}
 var oidEncryptionAlgorithmAES128GCM = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 1, 6}
 var oidEncryptionAlgorithmAES128CBC = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 1, 2}
+var oidEncryptionAlgorithmSM4 = asn1.ObjectIdentifier{1, 2, 156, 197, 1, 104}
+var oidEncryptionAlgorithmSM1 = asn1.ObjectIdentifier{1, 2, 156, 197, 1, 102}
 
 func (eci encryptedContentInfo) decrypt(key []byte) ([]byte, error) {
 	alg := eci.ContentEncryptionAlgorithm.Algorithm
@@ -387,7 +541,8 @@ func (eci encryptedContentInfo) decrypt(key []byte) ([]byte, error) {
 		!alg.Equal(oidEncryptionAlgorithmDESEDE3CBC) &&
 		!alg.Equal(oidEncryptionAlgorithmAES256CBC) &&
 		!alg.Equal(oidEncryptionAlgorithmAES128CBC) &&
-		!alg.Equal(oidEncryptionAlgorithmAES128GCM) {
+		!alg.Equal(oidEncryptionAlgorithmAES128GCM) &&
+		!alg.Equal(oidEncryptionAlgorithmSM4) {
 		fmt.Printf("Unsupported Content Encryption Algorithm: %s\n", alg)
 		return nil, ErrPKCS7UnsupportedAlgorithm
 	}
@@ -417,6 +572,8 @@ func (eci encryptedContentInfo) decrypt(key []byte) ([]byte, error) {
 	var err error
 
 	switch {
+	case alg.Equal(oidEncryptionAlgorithmSM4):
+		block, err = sm4.NewCipher(key)
 	case alg.Equal(oidEncryptionAlgorithmDESCBC):
 		block, err = des.NewCipher(key)
 	case alg.Equal(oidEncryptionAlgorithmDESEDE3CBC):
@@ -543,6 +700,19 @@ func (p7 *PKCS7) UnmarshalSignedAttribute(attributeType asn1.ObjectIdentifier, o
 	return unmarshalAttribute(attributes, attributeType, out)
 }
 
+// UnmarshalAttribute decodes a single attribute from the signer info
+func (p7 *PKCS7) UnmarshalUnAttribute(attributeType asn1.ObjectIdentifier, out interface{}) error {
+	sd, ok := p7.raw.(signedData)
+	if !ok {
+		return errors.New("pkcs7: payload is not signedData content")
+	}
+	if len(sd.SignerInfos) < 1 {
+		return errors.New("pkcs7: payload has no signers")
+	}
+	attributes := sd.SignerInfos[0].UnauthenticatedAttributes
+	return unmarshalAttribute(attributes, attributeType, out)
+}
+
 // SignedData is an opaque data structure for creating signed data payloads
 type SignedData struct {
 	sd            signedData
@@ -617,10 +787,11 @@ func NewPKCS7SignedData(data []byte, pkcs1SignedData []byte, hashType Hash, sign
 	if err != nil {
 		return nil, err
 	}
+	sigOid, err := getOIDForSign(signCert.PublicKeyAlgorithm)
 	signer := signerInfo{
 		AuthenticatedAttributes:   nil,
 		DigestAlgorithm:           pkix.AlgorithmIdentifier{Algorithm: algOid},
-		DigestEncryptionAlgorithm: pkix.AlgorithmIdentifier{Algorithm: oidSignatureSM2WithSM3},
+		DigestEncryptionAlgorithm: pkix.AlgorithmIdentifier{Algorithm: sigOid},
 		IssuerAndSerialNumber:     ias,
 		EncryptedDigest:           pkcs1SignedData,
 		Version:                   1,
@@ -829,9 +1000,18 @@ func DegenerateCertificate(cert []byte) ([]byte, error) {
 	return asn1.Marshal(signedContent)
 }
 
+//AES256 SymmType = iota - 1
+//SM4
+//DES
+//DESede
+//SM1
 const (
 	EncryptionAlgorithmDESCBC = iota
 	EncryptionAlgorithmAES128GCM
+	EncryptionAlgorithmAES256
+	EncryptionAlgorithmSM4
+	EncryptionAlgorithmDESede
+	EncryptionAlgorithmSM1
 )
 
 // ContentEncryptionAlgorithm determines the algorithm used to encrypt the
@@ -940,6 +1120,114 @@ func encryptDESCBC(content []byte) ([]byte, *encryptedContentInfo, error) {
 	return key, &eci, nil
 }
 
+func encryptSM4(content []byte) ([]byte, *encryptedContentInfo, error) {
+	// Create SM4 key & CBC IV
+	key := make([]byte, 16)
+	iv := make([]byte, sm4.BlockSize)
+	_, err := rand.Read(key)
+	if err != nil {
+		return nil, nil, err
+	}
+	_, err = rand.Read(iv)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Encrypt padded content
+	block, err := sm4.NewCipher(key)
+	if err != nil {
+		return nil, nil, err
+	}
+	mode := cipher.NewCBCEncrypter(block, iv)
+	plaintext, err := pad(content, mode.BlockSize())
+	cyphertext := make([]byte, len(plaintext))
+	mode.CryptBlocks(cyphertext, plaintext)
+
+	// Prepare ASN.1 Encrypted Content Info
+	eci := encryptedContentInfo{
+		ContentType: oidData,
+		ContentEncryptionAlgorithm: pkix.AlgorithmIdentifier{
+			Algorithm:  oidEncryptionAlgorithmSM4,
+			Parameters: asn1.RawValue{Tag: 4, Bytes: iv},
+		},
+		EncryptedContent: marshalEncryptedContent(cyphertext),
+	}
+
+	return key, &eci, nil
+}
+
+func encryptAES256(content []byte) ([]byte, *encryptedContentInfo, error) {
+	// Create SM4 key & CBC IV
+	key := make([]byte, 32)
+	iv := make([]byte, aes.BlockSize)
+	_, err := rand.Read(key)
+	if err != nil {
+		return nil, nil, err
+	}
+	_, err = rand.Read(iv)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Encrypt padded content
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, nil, err
+	}
+	mode := cipher.NewCBCEncrypter(block, iv)
+	plaintext, err := pad(content, mode.BlockSize())
+	cyphertext := make([]byte, len(plaintext))
+	mode.CryptBlocks(cyphertext, plaintext)
+
+	// Prepare ASN.1 Encrypted Content Info
+	eci := encryptedContentInfo{
+		ContentType: oidData,
+		ContentEncryptionAlgorithm: pkix.AlgorithmIdentifier{
+			Algorithm:  oidEncryptionAlgorithmAES256CBC,
+			Parameters: asn1.RawValue{Tag: 4, Bytes: iv},
+		},
+		EncryptedContent: marshalEncryptedContent(cyphertext),
+	}
+
+	return key, &eci, nil
+}
+
+func encryptDESede(content []byte) ([]byte, *encryptedContentInfo, error) {
+	// Create SM4 key & CBC IV
+	key := make([]byte, 24)
+	iv := make([]byte, des.BlockSize)
+	_, err := rand.Read(key)
+	if err != nil {
+		return nil, nil, err
+	}
+	_, err = rand.Read(iv)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Encrypt padded content
+	block, err := des.NewTripleDESCipher(key)
+	if err != nil {
+		return nil, nil, err
+	}
+	mode := cipher.NewCBCEncrypter(block, iv)
+	plaintext, err := pad(content, mode.BlockSize())
+	cyphertext := make([]byte, len(plaintext))
+	mode.CryptBlocks(cyphertext, plaintext)
+
+	// Prepare ASN.1 Encrypted Content Info
+	eci := encryptedContentInfo{
+		ContentType: oidData,
+		ContentEncryptionAlgorithm: pkix.AlgorithmIdentifier{
+			Algorithm:  oidEncryptionAlgorithmDESEDE3CBC,
+			Parameters: asn1.RawValue{Tag: 4, Bytes: iv},
+		},
+		EncryptedContent: marshalEncryptedContent(cyphertext),
+	}
+
+	return key, &eci, nil
+}
+
 // Encrypt creates and returns an envelope data PKCS7 structure with encrypted
 // recipient keys for each recipient public key.
 //
@@ -951,16 +1239,23 @@ func encryptDESCBC(content []byte) ([]byte, *encryptedContentInfo, error) {
 //     ContentEncryptionAlgorithm = EncryptionAlgorithmAES128GCM
 //
 // TODO(fullsailor): Add support for encrypting content with other algorithms
-func PKCS7Encrypt(content []byte, recipients []*Certificate) ([]byte, error) {
+func PKCS7Encrypt(content []byte, recipients []*Certificate, contentEncryptionAlgorithm int) ([]byte, error) {
 	var eci *encryptedContentInfo
 	var key []byte
 	var err error
 
 	// Apply chosen symmetric encryption method
-	switch ContentEncryptionAlgorithm {
+	switch contentEncryptionAlgorithm {
+	case EncryptionAlgorithmAES256:
+		key, eci, err = encryptAES256(content)
+	case EncryptionAlgorithmSM4:
+		key, eci, err = encryptSM4(content)
 	case EncryptionAlgorithmDESCBC:
 		key, eci, err = encryptDESCBC(content)
-
+	case EncryptionAlgorithmDESede:
+		key, eci, err = encryptDESede(content)
+	case EncryptionAlgorithmSM1:
+		return nil, errors.New("sm1 symm algorithm is not supported")
 	case EncryptionAlgorithmAES128GCM:
 		key, eci, err = encryptAES128GCM(content)
 
@@ -974,8 +1269,11 @@ func PKCS7Encrypt(content []byte, recipients []*Certificate) ([]byte, error) {
 
 	// Prepare each recipient's encrypted cipher key
 	recipientInfos := make([]recipientInfo, len(recipients))
+	var haveSm2 bool = false
 	for i, recipient := range recipients {
-		encrypted, err := encryptKey(key, recipient)
+		isSm2 := recipient.PublicKeyAlgorithm == RSA
+		haveSm2 = haveSm2 || isSm2
+		encrypted, err := encryptKeyEx(key, recipient)
 		if err != nil {
 			return nil, err
 		}
@@ -983,11 +1281,15 @@ func PKCS7Encrypt(content []byte, recipients []*Certificate) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
+		encoid, err := getOIDForEncrypt(recipient.PublicKeyAlgorithm)
+		if err != nil {
+			return nil, err
+		}
 		info := recipientInfo{
 			Version:               0,
 			IssuerAndSerialNumber: ias,
 			KeyEncryptionAlgorithm: pkix.AlgorithmIdentifier{
-				Algorithm: oidEncryptionAlgorithmRSA,
+				Algorithm: encoid,
 			},
 			EncryptedKey: encrypted,
 		}
@@ -1005,9 +1307,16 @@ func PKCS7Encrypt(content []byte, recipients []*Certificate) ([]byte, error) {
 		return nil, err
 	}
 
+	var oidEnvData asn1.ObjectIdentifier
+	if haveSm2 {
+		oidEnvData = oidEnvelopedData
+	} else {
+		oidEnvData = oidSMEnvelopedData
+	}
 	// Prepare outer payload structure
 	wrapper := contentInfo{
-		ContentType: oidEnvelopedData,
+
+		ContentType: oidEnvData,
 		Content:     asn1.RawValue{Class: 2, Tag: 0, IsCompound: true, Bytes: innerContent},
 	}
 
@@ -1024,4 +1333,24 @@ func encryptKey(key []byte, recipient *Certificate) ([]byte, error) {
 		return rsa.EncryptPKCS1v15(rand.Reader, pub, key)
 	}
 	return nil, ErrPKCS7UnsupportedAlgorithm
+}
+
+func encryptKeyEx(key []byte, recipient *Certificate) ([]byte, error) {
+	switch recipient.PublicKey.(type) {
+	case *rsa.PublicKey:
+		pub := recipient.PublicKey.(*rsa.PublicKey)
+		return rsa.EncryptPKCS1v15(rand.Reader, pub, key)
+	case *sm2.PublicKey:
+		pub := recipient.PublicKey.(*sm2.PublicKey)
+		return sm2.EncryptAsn1(pub, key, rand.Reader)
+	case *ecdsa.PublicKey:
+		pub := &sm2.PublicKey{
+			Curve: recipient.PublicKey.(*ecdsa.PublicKey).Curve,
+			X:     recipient.PublicKey.(*ecdsa.PublicKey).X,
+			Y:     recipient.PublicKey.(*ecdsa.PublicKey).Y,
+		}
+		return sm2.EncryptAsn1(pub, key, rand.Reader)
+	default:
+		return nil, errors.New("invalid public key type")
+	}
 }

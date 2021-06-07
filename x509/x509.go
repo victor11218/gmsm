@@ -2059,6 +2059,13 @@ type certificateRequest struct {
 	SignatureValue     asn1.BitString
 }
 
+type P10CertificateRequest struct {
+	Raw                asn1.RawContent
+	TBSCSR             tbsCertificateRequest
+	SignatureAlgorithm pkix.AlgorithmIdentifier
+	SignatureValue     asn1.BitString
+}
+
 // oidExtensionRequest is a PKCS#9 OBJECT IDENTIFIER that indicates requested
 // extensions in a CSR.
 var oidExtensionRequest = asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 14}
@@ -2285,6 +2292,154 @@ func CreateCertificateRequest(rand io.Reader, template *CertificateRequest, sign
 	})
 }
 
+func CreateP10CertificateRequest(rand io.Reader, template *CertificateRequest, signer crypto.Signer) (p10 *P10CertificateRequest, err error) {
+	var hashFunc Hash
+	var sigAlgo pkix.AlgorithmIdentifier
+	hashFunc, sigAlgo, err = signingParamsForPublicKey(signer.Public(), template.SignatureAlgorithm)
+	if err != nil {
+		return nil, err
+	}
+
+	var publicKeyBytes []byte
+	var publicKeyAlgorithm pkix.AlgorithmIdentifier
+	publicKeyBytes, publicKeyAlgorithm, err = marshalPublicKey(signer.Public())
+	if err != nil {
+		return nil, err
+	}
+
+	var extensions []pkix.Extension
+
+	if (len(template.DNSNames) > 0 || len(template.EmailAddresses) > 0 || len(template.IPAddresses) > 0) &&
+		!oidInExtensions(oidExtensionSubjectAltName, template.ExtraExtensions) {
+		sanBytes, err := marshalSANs(template.DNSNames, template.EmailAddresses, template.IPAddresses)
+		if err != nil {
+			return nil, err
+		}
+
+		extensions = append(extensions, pkix.Extension{
+			Id:    oidExtensionSubjectAltName,
+			Value: sanBytes,
+		})
+	}
+
+	extensions = append(extensions, template.ExtraExtensions...)
+
+	var attributes []pkix.AttributeTypeAndValueSET
+	attributes = append(attributes, template.Attributes...)
+
+	if len(extensions) > 0 {
+		// specifiedExtensions contains all the extensions that we
+		// found specified via template.Attributes.
+		specifiedExtensions := make(map[string]bool)
+
+		for _, atvSet := range template.Attributes {
+			if !atvSet.Type.Equal(oidExtensionRequest) {
+				continue
+			}
+
+			for _, atvs := range atvSet.Value {
+				for _, atv := range atvs {
+					specifiedExtensions[atv.Type.String()] = true
+				}
+			}
+		}
+
+		atvs := make([]pkix.AttributeTypeAndValue, 0, len(extensions))
+		for _, e := range extensions {
+			if specifiedExtensions[e.Id.String()] {
+				// Attributes already contained a value for
+				// this extension and it takes priority.
+				continue
+			}
+
+			atvs = append(atvs, pkix.AttributeTypeAndValue{
+				// There is no place for the critical flag in a CSR.
+				Type:  e.Id,
+				Value: e.Value,
+			})
+		}
+
+		// Append the extensions to an existing attribute if possible.
+		appended := false
+		for _, atvSet := range attributes {
+			if !atvSet.Type.Equal(oidExtensionRequest) || len(atvSet.Value) == 0 {
+				continue
+			}
+
+			atvSet.Value[0] = append(atvSet.Value[0], atvs...)
+			appended = true
+			break
+		}
+
+		// Otherwise, add a new attribute for the extensions.
+		if !appended {
+			attributes = append(attributes, pkix.AttributeTypeAndValueSET{
+				Type: oidExtensionRequest,
+				Value: [][]pkix.AttributeTypeAndValue{
+					atvs,
+				},
+			})
+		}
+	}
+
+	asn1Subject := template.RawSubject
+	if len(asn1Subject) == 0 {
+		asn1Subject, err = asn1.Marshal(template.Subject.ToRDNSequence())
+		if err != nil {
+			return
+		}
+	}
+
+	rawAttributes, err := newRawAttributes(attributes)
+	if err != nil {
+		return
+	}
+
+	tbsCSR := tbsCertificateRequest{
+		Version: 0, // PKCS #10, RFC 2986
+		Subject: asn1.RawValue{FullBytes: asn1Subject},
+		PublicKey: publicKeyInfo{
+			Algorithm: publicKeyAlgorithm,
+			PublicKey: asn1.BitString{
+				Bytes:     publicKeyBytes,
+				BitLength: len(publicKeyBytes) * 8,
+			},
+		},
+		RawAttributes: rawAttributes,
+	}
+
+	tbsCSRContents, err := asn1.Marshal(tbsCSR)
+	if err != nil {
+		return
+	}
+	tbsCSR.Raw = tbsCSRContents
+
+	digest := tbsCSRContents
+	switch template.SignatureAlgorithm {
+	case SM2WithSM3, SM2WithSHA1, SM2WithSHA256, UnknownSignatureAlgorithm:
+		break
+	default:
+		h := hashFunc.New()
+		h.Write(tbsCSRContents)
+		digest = h.Sum(nil)
+	}
+
+	var signature []byte
+	signature, err = signer.Sign(rand, digest, hashFunc)
+	if err != nil {
+		return
+	}
+
+	return &P10CertificateRequest{
+		TBSCSR:             tbsCSR,
+		SignatureAlgorithm: sigAlgo,
+		SignatureValue: asn1.BitString{
+			Bytes:     signature,
+			BitLength: len(signature) * 8,
+		},
+	}, nil
+}
+
 // ParseCertificateRequest parses a single certificate request from the
 // given ASN.1 DER data.
 func ParseCertificateRequest(asn1Data []byte) (*CertificateRequest, error) {
@@ -2460,5 +2615,55 @@ func (c *Certificate) FromX509Certificate(x509Cert *x509.Certificate) {
 
 	for _, val := range x509Cert.ExtKeyUsage {
 		c.ExtKeyUsage = append(c.ExtKeyUsage, ExtKeyUsage(val))
+	}
+}
+
+func MarshalPKCS1PrivateKey(priv crypto.PrivateKey) ([]byte, error) {
+	switch priv.(type) {
+	case *rsa.PrivateKey:
+		return MarshalPKCS1RSAPrivateKey(priv.(*rsa.PrivateKey)), nil
+	case *ecdsa.PrivateKey:
+		pri := &sm2.PrivateKey{
+			PublicKey: sm2.PublicKey{Curve: priv.(ecdsa.PrivateKey).Curve, X: priv.(ecdsa.PrivateKey).X, Y: priv.(ecdsa.PrivateKey).Y},
+			D:         priv.(ecdsa.PrivateKey).D,
+		}
+		return sm2.MarshalPKCS1SM2PrivateKey(pri)
+	case *sm2.PrivateKey:
+		return sm2.MarshalPKCS1SM2PrivateKey(priv.(*sm2.PrivateKey))
+	default:
+		return nil, errors.New("x509: only RSA and ECDSA(SM2) public keys supported")
+	}
+}
+
+func UnMarshalPKCS1PrivateKey(pubkeyAlg PublicKeyAlgorithm, pbPriv []byte) (crypto.PrivateKey, error) {
+	var err error
+	var priv crypto.PrivateKey
+	switch pubkeyAlg {
+	case RSA:
+		var prikey rsa.PrivateKey
+		_, err = asn1.Unmarshal(pbPriv, &prikey)
+		priv = prikey
+	case SM2:
+		var prikey sm2.PrivateKey
+		_, err = asn1.Unmarshal(pbPriv, &prikey)
+		priv = prikey
+	default:
+		return nil, errors.New("x509: only RSA and ECDSA(SM2) public keys supported")
+	}
+
+	return priv, err
+}
+
+func ParsePKCS8PrivateKey(pubkeyAlg PublicKeyAlgorithm, der, pwd []byte) (crypto.PrivateKey, error) {
+	switch pubkeyAlg {
+	case RSA:
+		return x509.ParsePKCS8PrivateKey(der)
+	case SM2:
+		if pwd == nil {
+			return ParsePKCS8UnecryptedPrivateKey(der)
+		}
+		return ParsePKCS8EcryptedPrivateKey(der, pwd)
+	default:
+		return nil, errors.New("x509: only RSA and ECDSA(SM2) public keys supported")
 	}
 }

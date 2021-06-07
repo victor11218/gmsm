@@ -278,7 +278,7 @@ func ParsePKCS8EcryptedPrivateKey(der, pwd []byte) (*sm2.PrivateKey, error) {
 	return rKey, nil
 }
 
-func ParsePKCS8PrivateKey(der, pwd []byte) (*sm2.PrivateKey, error) {
+func ParseSM2PKCS8PrivateKey(der, pwd []byte) (*sm2.PrivateKey, error) {
 	if pwd == nil {
 
 		return ParsePKCS8UnecryptedPrivateKey(der)

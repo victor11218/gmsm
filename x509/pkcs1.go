@@ -93,8 +93,8 @@ func ParsePKCS1PrivateKey(der []byte) (*rsa.PrivateKey, error) {
 	return key, nil
 }
 
-// MarshalPKCS1PrivateKey converts a private key to ASN.1 DER encoded form.
-func MarshalPKCS1PrivateKey(key *rsa.PrivateKey) []byte {
+// MarshalPKCS1RSAPrivateKey converts a private key to ASN.1 DER encoded form.
+func MarshalPKCS1RSAPrivateKey(key *rsa.PrivateKey) []byte {
 	key.Precompute()
 
 	version := 0

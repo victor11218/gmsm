@@ -668,3 +668,13 @@ func getLastBit(a *big.Int) uint {
 func (priv *PrivateKey) Decrypt(_ io.Reader, msg []byte, _ crypto.DecrypterOpts) (plaintext []byte, err error) {
 	return Decrypt(priv, msg, C1C3C2)
 }
+
+func MarshalPKCS1SM2PrivateKey(priv *PrivateKey) ([]byte, error) {
+	return asn1.Marshal(priv)
+}
+
+func UnMarshalPKCS1SM2PrivateKey(pbPriv []byte) (*PrivateKey, error) {
+	var priv PrivateKey
+	_, err := asn1.Unmarshal(pbPriv, &priv)
+	return &priv, err
+}

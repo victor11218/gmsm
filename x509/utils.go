@@ -3,6 +3,7 @@ package x509
 import (
 	"bytes"
 	"crypto"
+	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -21,7 +22,7 @@ func ReadPrivateKeyFromPem(privateKeyPem []byte, pwd []byte) (*sm2.PrivateKey, e
 	if block == nil {
 		return nil, errors.New("failed to decode private key")
 	}
-	priv, err := ParsePKCS8PrivateKey(block.Bytes, pwd)
+	priv, err := ParseSM2PKCS8PrivateKey(block.Bytes, pwd)
 	return priv, err
 }
 
@@ -155,7 +156,18 @@ func ReadCertificateFromPem(certPem []byte) (*Certificate, error) {
 	return ParseCertificate(block.Bytes)
 }
 
-// CreateCertificate creates a new certificate based on a template. The
+func CreateCertificate(template, parent *Certificate, publicKey crypto.PublicKey, signer crypto.Signer) ([]byte, error) {
+	switch publicKey.(type) {
+	case *rsa.PublicKey:
+		return x509.CreateCertificate(rand.Reader, template.ToX509Certificate(), parent.ToX509Certificate(), publicKey, signer)
+	case *sm2.PublicKey, *ecdsa.PrivateKey:
+		return CreateSM2Certificate(template, parent, publicKey.(*sm2.PublicKey), signer)
+	default:
+		return nil, errors.New("")
+	}
+}
+
+// CreateSM2Certificate creates a new certificate based on a template. The
 // following members of template are used: SerialNumber, Subject, NotBefore,
 // NotAfter, KeyUsage, ExtKeyUsage, UnknownExtKeyUsage, BasicConstraintsValid,
 // IsCA, MaxPathLen, SubjectKeyId, DNSNames, PermittedDNSDomainsCritical,
@@ -169,7 +181,7 @@ func ReadCertificateFromPem(certPem []byte) (*Certificate, error) {
 //
 // All keys types that are implemented via crypto.Signer are supported (This
 // includes *rsa.PublicKey and *ecdsa.PublicKey.)
-func CreateCertificate(template, parent *Certificate, publicKey *sm2.PublicKey, signer crypto.Signer) ([]byte, error) {
+func CreateSM2Certificate(template, parent *Certificate, publicKey *sm2.PublicKey, signer crypto.Signer) ([]byte, error) {
 	if template.SerialNumber == nil {
 		return nil, errors.New("x509: no SerialNumber given")
 	}
