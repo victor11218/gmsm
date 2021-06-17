@@ -17,7 +17,6 @@ import (
 )
 
 func main() {
-
 	//sm2
 	sm2strPubBase64, sm2strPriBase64, sm2strP10Base64, err := ucapp4go.CreatePKCS10RequestString(ucapp4go.SM2, 256)
 	if err != nil {

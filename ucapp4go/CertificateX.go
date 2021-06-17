@@ -1,6 +1,7 @@
 package ucapp4go
 
 import (
+	"bytes"
 	"crypto"
 	"crypto/dsa"
 	"crypto/ecdsa"
@@ -10,7 +11,10 @@ import (
 	"errors"
 	"github.com/roy19831015/gmsm/sm2"
 	"github.com/roy19831015/gmsm/x509"
+	"io"
+	"io/ioutil"
 	"strconv"
+	"strings"
 )
 
 type CertificateX struct {
@@ -72,6 +76,38 @@ func CertificateXConstructorWithInterface(cert *x509.Certificate, priKey crypto.
 		Pkcs1HashType:   0,
 		Pkcs7HashType:   0,
 	}}, nil
+}
+
+func CertificateXConstructorWithReader(readerCertBase64 io.Reader, readerSecretKeyBase64 io.Reader) (*CertificateX, error) {
+	var pbCertDER, pbSecretKeyDER, all []byte
+	var err error
+	if readerCertBase64 != nil {
+		all, err = ioutil.ReadAll(readerCertBase64)
+		if err != nil {
+			return nil, err
+		}
+		if len(all) <= 0 {
+			return nil, errors.New("empty reader in 'readerCertBase64'")
+		}
+		if all[0] == byte('M') {
+			pbCertDER, _ = Base64Decode(string(all))
+		} else if bytes.Equal(all[0:27], []byte("-----BEGIN CERTIFICATE-----")) {
+			str := strings.ReplaceAll(strings.ReplaceAll(string(all), "-----BEGIN CERTIFICATE-----", ""), "-----END CERTIFICATE-----", "")
+			pbCertDER, _ = Base64Decode(str)
+		} else {
+			pbCertDER = all
+		}
+	}
+	if readerSecretKeyBase64 != nil {
+		pbSecretKeyDER, err = ioutil.ReadAll(readerSecretKeyBase64)
+		if err != nil {
+			return nil, err
+		}
+		if len(pbSecretKeyDER) <= 0 {
+			return nil, errors.New("empty reader in 'readerSecretKeyBase64'")
+		}
+	}
+	return CertificateXConstructorWithByteArray(pbCertDER, pbSecretKeyDER)
 }
 
 func CertificateXConstructorWithBase64String(strCertBase64 string, strSecretKeyBase64 string) (*CertificateX, error) {
