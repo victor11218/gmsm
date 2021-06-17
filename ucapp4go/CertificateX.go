@@ -361,7 +361,7 @@ func (certx *CertificateX) GetIssuerUniqueId() (string, error) {
 	}
 	if oidv[0] == 0x30 {
 		var ret []string
-		_, err = asn1.Unmarshal(oidv, ret)
+		_, err = asn1.Unmarshal(oidv, &ret)
 		return ret[0], nil
 	}else{
 		var ret string
