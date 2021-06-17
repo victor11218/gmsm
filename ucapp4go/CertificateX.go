@@ -355,5 +355,20 @@ func (certx *CertificateX) GetSubjectUniqueId() (string, error) {
 func (certx *CertificateX) GetIssuerUniqueId() (string, error) {
 	var oidIUid asn1.ObjectIdentifier
 	oidIUid = OidExtensionAuthorityKeyId
-	return certx.GetExtensionString(oidIUid.String())
+	oidv, err := certx.GetExtension(oidIUid.String())
+	if err != nil {
+		return "", err
+	}
+	if oidv[0] == 0x30 {
+		var ret []string
+		_, err = asn1.Unmarshal(oidv, ret)
+		return ret[0], nil
+	}else{
+		var ret string
+		_, err = asn1.Unmarshal(oidv, &ret)
+		if err != nil {
+			return HexEncode(oidv)
+		}
+		return ret, nil
+	}
 }
