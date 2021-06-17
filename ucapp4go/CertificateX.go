@@ -15,6 +15,7 @@ import (
 	"io/ioutil"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type CertificateX struct {
@@ -222,6 +223,14 @@ func (certx *CertificateX) GetVersion() string {
 
 func (certx *CertificateX) GetSignatureAlgorithm() string {
 	return certx.X509Cert.SignatureAlgorithm.String()
+}
+
+func (certx *CertificateX) GetNotBeforeTime() time.Time {
+	return certx.X509Cert.NotBefore
+}
+
+func (certx *CertificateX) GetNotAfterTime() time.Time {
+	return certx.X509Cert.NotAfter
 }
 
 func (certx *CertificateX) GetNotBeforeTimestamp() string {
