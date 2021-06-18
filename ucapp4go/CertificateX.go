@@ -349,7 +349,16 @@ func (certx *CertificateX) GetPriKeyB64() (string, error) {
 func (certx *CertificateX) GetSubjectUniqueId() (string, error) {
 	var oidSUid asn1.ObjectIdentifier
 	oidSUid = OidExtensionSubjectKeyId
-	return certx.GetExtensionString(oidSUid.String())
+	oidv, err := certx.GetExtension(oidSUid.String())
+	if err != nil {
+		return "", err
+	}
+	var ret []byte
+	_, err = asn1.Unmarshal(oidv, &ret)
+	if err != nil {
+		return "", err
+	}
+	return HexEncode(ret)
 }
 
 func (certx *CertificateX) GetIssuerUniqueId() (string, error) {
@@ -359,16 +368,12 @@ func (certx *CertificateX) GetIssuerUniqueId() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if oidv[0] == 0x30 {
-		var ret []string
-		_, err = asn1.Unmarshal(oidv, &ret)
-		return ret[0], nil
-	}else{
-		var ret string
-		_, err = asn1.Unmarshal(oidv, &ret)
-		if err != nil {
-			return HexEncode(oidv)
-		}
-		return ret, nil
+	var ret struct{
+		asn1.RawValue `asn1:"tag:0"`
 	}
+	_, err = asn1.Unmarshal(oidv, &ret)
+	if err != nil {
+		return "", err
+	}
+	return HexEncode(ret.Bytes)
 }

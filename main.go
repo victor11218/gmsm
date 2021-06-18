@@ -114,6 +114,18 @@ func main() {
 		log.Error("SM2构造证书对象错误，" + err.Error())
 		return
 	}
+	id, err := sm2certx.GetIssuerUniqueId()
+	if err != nil {
+		log.Error("SM2获取IssuerUID错误，" + err.Error())
+		return
+	}
+	log.Debug("SM2的IssuerUID：" + id)
+	id, err = sm2certx.GetSubjectUniqueId()
+	if err != nil {
+		log.Error("SM2获取SubjectUID错误，" + err.Error())
+		return
+	}
+	log.Debug("SM2的SubjectUID：" + id)
 	oidk := "2.4.16.11.7.1"
 	oidv24161171, err := sm2certx.GetExtensionString(oidk)
 	if err != nil {
