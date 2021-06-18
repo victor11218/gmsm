@@ -3,7 +3,6 @@ package ucapp4go
 import (
 	"bytes"
 	"crypto"
-	"crypto/dsa"
 	"crypto/ecdsa"
 	"crypto/rsa"
 	x5092 "crypto/x509"
@@ -272,15 +271,11 @@ func (certx *CertificateX) GetKeybits() int {
 	case x509.RSA:
 		ret = certx.X509Cert.PublicKey.(*rsa.PublicKey).Size()
 	case x509.DSA:
-		ret = certx.X509Cert.PublicKey.(*dsa.PublicKey).Y.BitLen()
+		ret = 256
 	case x509.ECDSA:
-		ret = sm2.PublicKey{
-			Curve: certx.X509Cert.PublicKey.(*ecdsa.PublicKey).Curve,
-			X:     certx.X509Cert.PublicKey.(*ecdsa.PublicKey).X,
-			Y:     certx.X509Cert.PublicKey.(*ecdsa.PublicKey).Y,
-		}.X.BitLen()
+		ret = 256
 	case x509.SM2:
-		ret = certx.X509Cert.PublicKey.(*sm2.PublicKey).X.BitLen()
+		ret = 256
 	default:
 		ret = 0
 	}
