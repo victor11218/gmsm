@@ -28,14 +28,14 @@ func CertificateXConstructorWithByteArray(pbCertDER []byte, pbSecretKeyDER []byt
 		sxkey *SecretKeyX
 	)
 
-	if pbCertDER != nil {
+	if pbCertDER != nil && len(pbCertDER) > 0 {
 		cx509, err = x509.ParseCertificate(pbCertDER)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	if pbSecretKeyDER != nil {
+	if pbSecretKeyDER != nil && len(pbSecretKeyDER) > 0 {
 		sxkey, err = SecretKeyXConstructorWithByteArray(pbSecretKeyDER)
 		if err != nil {
 			return nil, err
