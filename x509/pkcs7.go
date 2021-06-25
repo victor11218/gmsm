@@ -241,7 +241,7 @@ func (p7 *PKCS7) VerifyWithPlainData(plainData []byte, certChain *CertPool, cert
 	}
 	if p7.Content == nil || len(p7.Content) == 0 {
 		p7.Content = plainData
-	} else if bytes.Compare(p7.Content, plainData) != 0 {
+	} else if plainData!=nil && len(plainData)==0 && bytes.Compare(p7.Content, plainData) != 0 {
 		return errors.New("given plainData is different from plainData in attached pkcs7Data")
 	}
 	for _, signer := range p7.Signers {
