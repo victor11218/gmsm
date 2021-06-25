@@ -14,7 +14,6 @@ import (
 	"github.com/roy19831015/gmsm/pkcs12"
 	"github.com/roy19831015/gmsm/sm2"
 	"github.com/roy19831015/gmsm/x509"
-	"strings"
 )
 
 func Base64Encode(pbData []byte) (string, error) {
@@ -386,7 +385,7 @@ func GetPlainTextFromP7SignedData(pbSignData []byte) ([]byte, error){
 func GetIssuerFromP7SignedData(pbSignData []byte) ([]string, error){
 	p7, err := x509.ParsePKCS7(pbSignData)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	retArr := make([]string, len(p7.Signers))
 	for _, signer := range p7.Signers {
@@ -403,7 +402,7 @@ func GetIssuerFromP7SignedData(pbSignData []byte) ([]string, error){
 func GetSeriNoFromP7SignedData(pbSignData []byte) ([]string, error){
 	p7, err := x509.ParsePKCS7(pbSignData)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	retArr := make([]string, len(p7.Signers))
 	for _, signer := range p7.Signers {
