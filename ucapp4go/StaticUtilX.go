@@ -7,12 +7,14 @@ import (
 	"crypto/rsa"
 	x5092 "crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/asn1"
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"github.com/roy19831015/gmsm/pkcs12"
 	"github.com/roy19831015/gmsm/sm2"
 	"github.com/roy19831015/gmsm/x509"
+	"strings"
 )
 
 func Base64Encode(pbData []byte) (string, error) {
@@ -379,6 +381,71 @@ func GetPlainTextFromP7SignedData(pbSignData []byte) ([]byte, error){
 	} else {
 		return p7.Content, nil
 	}
+}
+
+func GetIssuerFromP7SignedData(pbSignData []byte) ([]string, error){
+	p7, err := x509.ParsePKCS7(pbSignData)
+	if err != nil {
+		return "", err
+	}
+	retArr := make([]string, len(p7.Signers))
+	for _, signer := range p7.Signers {
+		var issuer pkix.Name
+		_,err = asn1.Unmarshal(signer.IssuerAndSerialNumber.IssuerName.Bytes, &issuer)
+		if err != nil {
+			continue
+		}
+		retArr = append(retArr, issuer.String())
+	}
+	return retArr, nil
+}
+
+func GetSeriNoFromP7SignedData(pbSignData []byte) ([]string, error){
+	p7, err := x509.ParsePKCS7(pbSignData)
+	if err != nil {
+		return "", err
+	}
+	retArr := make([]string, len(p7.Signers))
+	for _, signer := range p7.Signers {
+		sn := signer.IssuerAndSerialNumber.SerialNumber.Text(16)
+		if err != nil {
+			continue
+		}
+		retArr = append(retArr, sn)
+	}
+	return retArr, nil
+}
+
+func GetCertFromP7SignedData(pbSignData []byte) ([]*CertificateX, error){
+	p7, err := x509.ParsePKCS7(pbSignData)
+	if err != nil {
+		return nil, err
+	}
+	retArr := make([]*CertificateX, len(p7.Certificates))
+	for _, cert := range p7.Certificates {
+		certx,err:=CertificateXConstructorWithInterface(cert,nil)
+		if err != nil {
+			continue
+		}
+		retArr = append(retArr, certx)
+	}
+	return retArr, nil
+}
+
+func GetP1FromP7SignedData(pbSignData []byte) ([][]byte, error){
+	p7, err := x509.ParsePKCS7(pbSignData)
+	if err != nil {
+		return nil, err
+	}
+	retArr := make([][]byte, len(p7.Signers))
+	for _, signer := range p7.Signers {
+		p1 := signer.EncryptedDigest
+		if err != nil {
+			continue
+		}
+		retArr = append(retArr, p1)
+	}
+	return retArr, nil
 }
 
 //func SymmEncrypt(inData []byte, symmType SymmType) []byte {
