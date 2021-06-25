@@ -369,6 +369,18 @@ func GetEncryptionAlgorithmBySymmType(symmType SymmType) int {
 	}
 }
 
+func GetPlainTextFromP7SignedData(pbSignData []byte) ([]byte, error){
+	p7, err := x509.ParsePKCS7(pbSignData)
+	if err != nil {
+		return nil, err
+	}
+	if p7.Content == nil || len(p7.Content) == 0 {
+		return nil,errors.New("detached signature doesn't have plain content")
+	} else {
+		return p7.Content, nil
+	}
+}
+
 //func SymmEncrypt(inData []byte, symmType SymmType) []byte {
 //	switch expr {
 //
