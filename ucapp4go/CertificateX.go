@@ -58,9 +58,13 @@ func CertificateXConstructorWithByteArray(pbCertDER []byte, pbSecretKeyDER []byt
 }
 
 func CertificateXConstructorWithInterface(cert *x509.Certificate, priKey crypto.PrivateKey) (*CertificateX, error) {
-	skey, err := SecretKeyXConstructorWithInterface(priKey)
-	if err != nil {
-		return nil, err
+	var skey *SecretKeyX
+	var err error
+	if priKey != nil {
+		skey, err = SecretKeyXConstructorWithInterface(priKey)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return &CertificateX{CertificateXAttribute{
 		SecretKeyX:      skey,
