@@ -387,7 +387,7 @@ func GetIssuerFromP7SignedData(pbSignData []byte) ([]string, error){
 	if err != nil {
 		return nil, err
 	}
-	retArr := make([]string, len(p7.Signers))
+	retArr := make([]string, 0)
 	for _, signer := range p7.Signers {
 		var issuer pkix.Name
 		_,err = asn1.Unmarshal(signer.IssuerAndSerialNumber.IssuerName.Bytes, &issuer)
@@ -404,7 +404,7 @@ func GetSeriNoFromP7SignedData(pbSignData []byte) ([]string, error){
 	if err != nil {
 		return nil, err
 	}
-	retArr := make([]string, len(p7.Signers))
+	retArr := make([]string, 0)
 	for _, signer := range p7.Signers {
 		sn := signer.IssuerAndSerialNumber.SerialNumber.Text(16)
 		if err != nil {
@@ -420,7 +420,7 @@ func GetCertFromP7SignedData(pbSignData []byte) ([]*CertificateX, error){
 	if err != nil {
 		return nil, err
 	}
-	retArr := make([]*CertificateX, len(p7.Certificates))
+	retArr := make([]*CertificateX, 0)
 	for _, cert := range p7.Certificates {
 		certx,err:=CertificateXConstructorWithInterface(cert,nil)
 		if err != nil {
@@ -436,7 +436,7 @@ func GetP1FromP7SignedData(pbSignData []byte) ([][]byte, error){
 	if err != nil {
 		return nil, err
 	}
-	retArr := make([][]byte, len(p7.Signers))
+	retArr := make([][]byte, 0)
 	for _, signer := range p7.Signers {
 		p1 := signer.EncryptedDigest
 		if err != nil {
