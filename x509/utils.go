@@ -160,7 +160,7 @@ func CreateCertificate(template, parent *Certificate, publicKey crypto.PublicKey
 	switch parent.PublicKey.(type) {
 	case *rsa.PublicKey:
 		return x509.CreateCertificate(rand.Reader, template.ToX509Certificate(), parent.ToX509Certificate(), publicKey, signer)
-	case *sm2.PublicKey, *ecdsa.PrivateKey:
+	case *sm2.PublicKey, *ecdsa.PublicKey:
 		return CreateSM2Certificate(template, parent, publicKey.(*sm2.PublicKey), signer)
 	default:
 		return nil, errors.New("")
