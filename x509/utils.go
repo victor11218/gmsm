@@ -157,7 +157,7 @@ func ReadCertificateFromPem(certPem []byte) (*Certificate, error) {
 }
 
 func CreateCertificate(template, parent *Certificate, publicKey crypto.PublicKey, signer crypto.Signer) ([]byte, error) {
-	switch publicKey.(type) {
+	switch parent.PublicKey.(type) {
 	case *rsa.PublicKey:
 		return x509.CreateCertificate(rand.Reader, template.ToX509Certificate(), parent.ToX509Certificate(), publicKey, signer)
 	case *sm2.PublicKey, *ecdsa.PrivateKey:
