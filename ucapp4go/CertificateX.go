@@ -273,7 +273,7 @@ func (certx *CertificateX) GetKeybits() int {
 	var ret int
 	switch certx.X509Cert.PublicKeyAlgorithm {
 	case x509.RSA:
-		ret = certx.X509Cert.PublicKey.(*rsa.PublicKey).Size()
+		ret = certx.X509Cert.PublicKey.(*rsa.PublicKey).Size() * 8
 	case x509.DSA:
 		ret = 256
 	case x509.ECDSA:
@@ -367,7 +367,7 @@ func (certx *CertificateX) GetIssuerUniqueId() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	var ret struct{
+	var ret struct {
 		asn1.RawValue `asn1:"tag:0"`
 	}
 	_, err = asn1.Unmarshal(oidv, &ret)
