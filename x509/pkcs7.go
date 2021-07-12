@@ -66,12 +66,12 @@ type signedData struct {
 	Version                    int                        `asn1:"default:1"`
 	DigestAlgorithmIdentifiers []pkix.AlgorithmIdentifier `asn1:"set"`
 	ContentInfo                contentInfo
-	Certificates               rawCertificates        `asn1:"optional,tag:0"`
+	Certificates               RawCertificates        `asn1:"optional,tag:0"`
 	CRLs                       []pkix.CertificateList `asn1:"optional,tag:1"`
 	SignerInfos                []signerInfo           `asn1:"set"`
 }
 
-type rawCertificates struct {
+type RawCertificates struct {
 	Raw asn1.RawContent
 }
 
@@ -194,7 +194,7 @@ func parseSignedData(data []byte) (*PKCS7, error) {
 		raw:          sd}, nil
 }
 
-func (raw rawCertificates) Parse() ([]*Certificate, error) {
+func (raw RawCertificates) Parse() ([]*Certificate, error) {
 	if len(raw.Raw) == 0 {
 		return nil, nil
 	}
@@ -423,7 +423,7 @@ func getHashForOID(oid asn1.ObjectIdentifier) (Hash, error) {
 	return Hash(0), ErrPKCS7UnsupportedAlgorithm
 }
 
-func getOIDForHash(hashType Hash) (asn1.ObjectIdentifier, error) {
+func GetOIDForHash(hashType Hash) (asn1.ObjectIdentifier, error) {
 	switch hashType {
 	case SHA1:
 		return oidDigestAlgorithmSHA1, nil
@@ -449,7 +449,7 @@ func getOIDForEncrypt(pubicKeyAlg PublicKeyAlgorithm) (asn1.ObjectIdentifier, er
 	return nil, ErrPKCS7UnsupportedAlgorithm
 }
 
-func getOIDForSign(pubicKeyAlg PublicKeyAlgorithm) (asn1.ObjectIdentifier, error) {
+func GetOIDForSign(pubicKeyAlg PublicKeyAlgorithm) (asn1.ObjectIdentifier, error) {
 	switch pubicKeyAlg {
 	case RSA:
 		return oidPublicKeyRSA, nil
@@ -771,7 +771,7 @@ func NewPKCS7SignedData(data []byte, pkcs1SignedData []byte, hashType Hash, sign
 	} else {
 		ci = contentInfo{ContentType: oidData}
 	}
-	algOid, err := getOIDForHash(hashType)
+	algOid, err := GetOIDForHash(hashType)
 	if err != nil {
 		return nil, err
 	}
@@ -787,7 +787,7 @@ func NewPKCS7SignedData(data []byte, pkcs1SignedData []byte, hashType Hash, sign
 	if err != nil {
 		return nil, err
 	}
-	sigOid, err := getOIDForSign(signCert.PublicKeyAlgorithm)
+	sigOid, err := GetOIDForSign(signCert.PublicKeyAlgorithm)
 	signer := signerInfo{
 		AuthenticatedAttributes:   nil,
 		DigestAlgorithm:           pkix.AlgorithmIdentifier{Algorithm: algOid},
@@ -954,7 +954,7 @@ func signAttributes(attrs []attribute, pkey crypto.PrivateKey, hash crypto.Hash)
 }
 
 // concats and wraps the certificates in the RawValue structure
-func marshalCertificates(certs []*Certificate) rawCertificates {
+func marshalCertificates(certs []*Certificate) RawCertificates {
 	var buf bytes.Buffer
 	for _, cert := range certs {
 		buf.Write(cert.Raw)
@@ -966,13 +966,21 @@ func marshalCertificates(certs []*Certificate) rawCertificates {
 // Even though, the tag & length are stripped out during marshalling the
 // RawContent, we have to encode it into the RawContent. If its missing,
 // then `asn1.Marshal()` will strip out the certificate wrapper instead.
-func marshalCertificateBytes(certs []byte) (rawCertificates, error) {
+func marshalCertificateBytes(certs []byte) (RawCertificates, error) {
 	var val = asn1.RawValue{Bytes: certs, Class: 2, Tag: 0, IsCompound: true}
 	b, err := asn1.Marshal(val)
 	if err != nil {
-		return rawCertificates{}, err
+		return RawCertificates{}, err
 	}
-	return rawCertificates{Raw: b}, nil
+	return RawCertificates{Raw: b}, nil
+}
+
+func MarshalCertificates(certs []*Certificate) []byte {
+	var buf bytes.Buffer
+	for _, cert := range certs {
+		buf.Write(cert.Raw)
+	}
+	return buf.Bytes()
 }
 
 // DegenerateCertificate creates a signed data structure containing only the

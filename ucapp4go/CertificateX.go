@@ -376,3 +376,11 @@ func (certx *CertificateX) GetIssuerUniqueId() (string, error) {
 	}
 	return HexEncode(ret.Bytes)
 }
+
+func (certx *CertificateX) GetX509() (*x509.Certificate, error) {
+	return certx.X509Cert, nil
+}
+
+func (certx *CertificateX) GetPkcs1HashType() x509.Hash {
+	return certx.Pkcs1HashType
+}
