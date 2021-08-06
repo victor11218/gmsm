@@ -107,8 +107,8 @@ func PKCS1SignByPriKey(pbPlainData []byte, userID []byte, priKey crypto.PrivateK
 			return nil, err
 		}
 	case *sm2.PrivateKey:
-		p1Key := priKey.(sm2.PrivateKey)
-		r, s, err := sm2.Sm2Sign(&p1Key, pbPlainData, userID, rand.Reader)
+		p1Key := priKey.(*sm2.PrivateKey)
+		r, s, err := sm2.Sm2Sign(p1Key, pbPlainData, userID, rand.Reader)
 		if err != nil {
 			return nil, err
 		}
