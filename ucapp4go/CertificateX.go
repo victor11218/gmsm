@@ -6,6 +6,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/rsa"
 	x5092 "crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/asn1"
 	"errors"
 	"github.com/roy19831015/gmsm/sm2"
@@ -383,4 +384,8 @@ func (certx *CertificateX) GetX509() (*x509.Certificate, error) {
 
 func (certx *CertificateX) GetPkcs1HashType() x509.Hash {
 	return certx.Pkcs1HashType
+}
+
+func (certx *CertificateX) CreateCRL(rand io.Reader, revokedCerts []pkix.RevokedCertificate, now, expiry time.Time) (crlBytes []byte, err error) {
+	return certx.X509Cert.CreateCRL(rand, certx.SecretKeyX.Key, revokedCerts, now, expiry)
 }
