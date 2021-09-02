@@ -49,7 +49,7 @@ type PrivateKey struct {
 type sm2Signature struct {
 	R, S *big.Int
 }
-type sm2Cipher struct {
+type SM2Cipher struct {
 	XCoordinate *big.Int
 	YCoordinate *big.Int
 	HASH        []byte
@@ -507,14 +507,14 @@ func CipherMarshal(data []byte) ([]byte, error) {
 	y := new(big.Int).SetBytes(data[32:64])
 	hash := data[64:96]
 	cipherText := data[96:]
-	return asn1.Marshal(sm2Cipher{x, y, hash, cipherText})
+	return asn1.Marshal(SM2Cipher{x, y, hash, cipherText})
 }
 
 /*
 sm2密文asn.1编码格式转C1|C3|C2拼接格式
 */
 func CipherUnmarshal(data []byte) ([]byte, error) {
-	var cipher sm2Cipher
+	var cipher SM2Cipher
 	_, err := asn1.Unmarshal(data, &cipher)
 	if err != nil {
 		return nil, err

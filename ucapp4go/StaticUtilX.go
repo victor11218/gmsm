@@ -370,19 +370,19 @@ func GetEncryptionAlgorithmBySymmType(symmType SymmType) int {
 	}
 }
 
-func GetPlainTextFromP7SignedData(pbSignData []byte) ([]byte, error){
+func GetPlainTextFromP7SignedData(pbSignData []byte) ([]byte, error) {
 	p7, err := x509.ParsePKCS7(pbSignData)
 	if err != nil {
 		return nil, err
 	}
 	if p7.Content == nil || len(p7.Content) == 0 {
-		return nil,errors.New("detached signature doesn't have plain content")
+		return nil, errors.New("detached signature doesn't have plain content")
 	} else {
 		return p7.Content, nil
 	}
 }
 
-func GetIssuerFromP7SignedData(pbSignData []byte) ([]string, error){
+func GetIssuerFromP7SignedData(pbSignData []byte) ([]string, error) {
 	p7, err := x509.ParsePKCS7(pbSignData)
 	if err != nil {
 		return nil, err
@@ -390,7 +390,7 @@ func GetIssuerFromP7SignedData(pbSignData []byte) ([]string, error){
 	retArr := make([]string, 0)
 	for _, signer := range p7.Signers {
 		var issuer pkix.Name
-		_,err = asn1.Unmarshal(signer.IssuerAndSerialNumber.IssuerName.Bytes, &issuer)
+		_, err = asn1.Unmarshal(signer.IssuerAndSerialNumber.IssuerName.Bytes, &issuer)
 		if err != nil {
 			continue
 		}
@@ -399,7 +399,7 @@ func GetIssuerFromP7SignedData(pbSignData []byte) ([]string, error){
 	return retArr, nil
 }
 
-func GetSeriNoFromP7SignedData(pbSignData []byte) ([]string, error){
+func GetSeriNoFromP7SignedData(pbSignData []byte) ([]string, error) {
 	p7, err := x509.ParsePKCS7(pbSignData)
 	if err != nil {
 		return nil, err
@@ -415,14 +415,14 @@ func GetSeriNoFromP7SignedData(pbSignData []byte) ([]string, error){
 	return retArr, nil
 }
 
-func GetCertFromP7SignedData(pbSignData []byte) ([]*CertificateX, error){
+func GetCertFromP7SignedData(pbSignData []byte) ([]*CertificateX, error) {
 	p7, err := x509.ParsePKCS7(pbSignData)
 	if err != nil {
 		return nil, err
 	}
 	retArr := make([]*CertificateX, 0)
 	for _, cert := range p7.Certificates {
-		certx,err:=CertificateXConstructorWithInterface(cert,nil)
+		certx, err := CertificateXConstructorWithInterface(cert, nil)
 		if err != nil {
 			continue
 		}
@@ -431,7 +431,7 @@ func GetCertFromP7SignedData(pbSignData []byte) ([]*CertificateX, error){
 	return retArr, nil
 }
 
-func GetP1FromP7SignedData(pbSignData []byte) ([][]byte, error){
+func GetP1FromP7SignedData(pbSignData []byte) ([][]byte, error) {
 	p7, err := x509.ParsePKCS7(pbSignData)
 	if err != nil {
 		return nil, err
@@ -446,31 +446,3 @@ func GetP1FromP7SignedData(pbSignData []byte) ([][]byte, error){
 	}
 	return retArr, nil
 }
-
-//func SymmEncrypt(inData []byte, symmType SymmType) []byte {
-//	switch expr {
-//
-//	}
-//}
-//
-//func getCipherBlock(symmType SymmType, key []byte) (cipher.Block, []byte, error) {
-//	var cipherBlock cipher.Block
-//	var err error
-//	switch symmType {
-//	case AES256:
-//		if key != nil {
-//			cipherBlock, err = aes.NewCipher(key)
-//			return cipherBlock,key,err
-//		}else{
-//			inKey := rand.
-//			cipherBlock, err = aes.NewCipher(inKey)
-//			return cipherBlock,key,err
-//		}
-//	case SM4:
-//	case DES:
-//	case DESede:
-//	case SM1:
-//	default:
-//		return nil, errors.New("invalid symm type")
-//	}
-//}

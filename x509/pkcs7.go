@@ -78,7 +78,7 @@ type RawCertificates struct {
 type envelopedData struct {
 	Version              int
 	RecipientInfos       []recipientInfo `asn1:"set"`
-	EncryptedContentInfo encryptedContentInfo
+	EncryptedContentInfo EncryptedContentInfo
 }
 
 type recipientInfo struct {
@@ -88,7 +88,7 @@ type recipientInfo struct {
 	EncryptedKey           []byte
 }
 
-type encryptedContentInfo struct {
+type EncryptedContentInfo struct {
 	ContentType                asn1.ObjectIdentifier
 	ContentEncryptionAlgorithm pkix.AlgorithmIdentifier
 	EncryptedContent           asn1.RawValue `asn1:"tag:0,optional"`
@@ -241,7 +241,7 @@ func (p7 *PKCS7) VerifyWithPlainData(plainData []byte, certChain *CertPool, cert
 	}
 	if p7.Content == nil || len(p7.Content) == 0 {
 		p7.Content = plainData
-	} else if plainData!=nil && len(plainData)==0 && bytes.Compare(p7.Content, plainData) != 0 {
+	} else if plainData != nil && len(plainData) == 0 && bytes.Compare(p7.Content, plainData) != 0 {
 		return errors.New("given plainData is different from plainData in attached pkcs7Data")
 	}
 	for _, signer := range p7.Signers {
@@ -535,7 +535,7 @@ var oidEncryptionAlgorithmAES128CBC = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 
 var oidEncryptionAlgorithmSM4 = asn1.ObjectIdentifier{1, 2, 156, 197, 1, 104}
 var oidEncryptionAlgorithmSM1 = asn1.ObjectIdentifier{1, 2, 156, 197, 1, 102}
 
-func (eci encryptedContentInfo) decrypt(key []byte) ([]byte, error) {
+func (eci EncryptedContentInfo) decrypt(key []byte) ([]byte, error) {
 	alg := eci.ContentEncryptionAlgorithm.Algorithm
 	if !alg.Equal(oidEncryptionAlgorithmDESCBC) &&
 		!alg.Equal(oidEncryptionAlgorithmDESEDE3CBC) &&
@@ -756,6 +756,18 @@ func NewSignedData(data []byte) (*SignedData, error) {
 	return &SignedData{sd: sd, messageDigest: md}, nil
 }
 
+func NewP7B(certs []*Certificate) (*SignedData, error) {
+	ci := contentInfo{ContentType: oidData}
+	sd := signedData{
+		ContentInfo:                ci,
+		Version:                    1,
+		DigestAlgorithmIdentifiers: []pkix.AlgorithmIdentifier{},
+	}
+	sd.SignerInfos = []signerInfo{}
+
+	return &SignedData{sd: sd, certs: certs, messageDigest: nil}, nil
+}
+
 // NewPKCS7SignedData initializes a PKCS7SignedData with content
 func NewPKCS7SignedData(data []byte, pkcs1SignedData []byte, hashType Hash, signCert *Certificate) (*SignedData, error) {
 	var ci contentInfo
@@ -927,6 +939,20 @@ func (sd *SignedData) Finish() ([]byte, error) {
 	return asn1.Marshal(outer)
 }
 
+// Finish marshals the content and its signers
+func (sd *SignedData) DirectFinish() ([]byte, error) {
+	sd.sd.Certificates = marshalCertificates(sd.certs)
+	inner, err := asn1.Marshal(sd.sd)
+	if err != nil {
+		return nil, err
+	}
+	outer := contentInfo{
+		ContentType: oidSignedData,
+		Content:     asn1.RawValue{Class: 2, Tag: 0, Bytes: inner, IsCompound: true},
+	}
+	return asn1.Marshal(outer)
+}
+
 func cert2issuerAndSerial(cert *Certificate) (issuerAndSerial, error) {
 	var ias issuerAndSerial
 	// The issuer RDNSequence has to match exactly the sequence in the certificate
@@ -1038,7 +1064,7 @@ type aesGCMParameters struct {
 	ICVLen int
 }
 
-func encryptAES128GCM(content []byte) ([]byte, *encryptedContentInfo, error) {
+func encryptAES128GCM(content []byte) ([]byte, *EncryptedContentInfo, error) {
 	// Create AES key and nonce
 	key := make([]byte, 16)
 	nonce := make([]byte, nonceSize)
@@ -1077,7 +1103,7 @@ func encryptAES128GCM(content []byte) ([]byte, *encryptedContentInfo, error) {
 		return nil, nil, err
 	}
 
-	eci := encryptedContentInfo{
+	eci := EncryptedContentInfo{
 		ContentType: oidData,
 		ContentEncryptionAlgorithm: pkix.AlgorithmIdentifier{
 			Algorithm: oidEncryptionAlgorithmAES128GCM,
@@ -1092,7 +1118,7 @@ func encryptAES128GCM(content []byte) ([]byte, *encryptedContentInfo, error) {
 	return key, &eci, nil
 }
 
-func encryptDESCBC(content []byte) ([]byte, *encryptedContentInfo, error) {
+func encryptDESCBC(content []byte) ([]byte, *EncryptedContentInfo, error) {
 	// Create DES key & CBC IV
 	key := make([]byte, 8)
 	iv := make([]byte, des.BlockSize)
@@ -1116,7 +1142,7 @@ func encryptDESCBC(content []byte) ([]byte, *encryptedContentInfo, error) {
 	mode.CryptBlocks(cyphertext, plaintext)
 
 	// Prepare ASN.1 Encrypted Content Info
-	eci := encryptedContentInfo{
+	eci := EncryptedContentInfo{
 		ContentType: oidData,
 		ContentEncryptionAlgorithm: pkix.AlgorithmIdentifier{
 			Algorithm:  oidEncryptionAlgorithmDESCBC,
@@ -1128,7 +1154,7 @@ func encryptDESCBC(content []byte) ([]byte, *encryptedContentInfo, error) {
 	return key, &eci, nil
 }
 
-func encryptSM4(content []byte) ([]byte, *encryptedContentInfo, error) {
+func encryptSM4(content []byte) ([]byte, *EncryptedContentInfo, error) {
 	// Create SM4 key & CBC IV
 	key := make([]byte, 16)
 	iv := make([]byte, sm4.BlockSize)
@@ -1152,7 +1178,7 @@ func encryptSM4(content []byte) ([]byte, *encryptedContentInfo, error) {
 	mode.CryptBlocks(cyphertext, plaintext)
 
 	// Prepare ASN.1 Encrypted Content Info
-	eci := encryptedContentInfo{
+	eci := EncryptedContentInfo{
 		ContentType: oidData,
 		ContentEncryptionAlgorithm: pkix.AlgorithmIdentifier{
 			Algorithm:  oidEncryptionAlgorithmSM4,
@@ -1164,7 +1190,7 @@ func encryptSM4(content []byte) ([]byte, *encryptedContentInfo, error) {
 	return key, &eci, nil
 }
 
-func encryptAES256(content []byte) ([]byte, *encryptedContentInfo, error) {
+func encryptAES256(content []byte) ([]byte, *EncryptedContentInfo, error) {
 	// Create SM4 key & CBC IV
 	key := make([]byte, 32)
 	iv := make([]byte, aes.BlockSize)
@@ -1188,7 +1214,7 @@ func encryptAES256(content []byte) ([]byte, *encryptedContentInfo, error) {
 	mode.CryptBlocks(cyphertext, plaintext)
 
 	// Prepare ASN.1 Encrypted Content Info
-	eci := encryptedContentInfo{
+	eci := EncryptedContentInfo{
 		ContentType: oidData,
 		ContentEncryptionAlgorithm: pkix.AlgorithmIdentifier{
 			Algorithm:  oidEncryptionAlgorithmAES256CBC,
@@ -1200,7 +1226,7 @@ func encryptAES256(content []byte) ([]byte, *encryptedContentInfo, error) {
 	return key, &eci, nil
 }
 
-func encryptDESede(content []byte) ([]byte, *encryptedContentInfo, error) {
+func encryptDESede(content []byte) ([]byte, *EncryptedContentInfo, error) {
 	// Create SM4 key & CBC IV
 	key := make([]byte, 24)
 	iv := make([]byte, des.BlockSize)
@@ -1224,7 +1250,7 @@ func encryptDESede(content []byte) ([]byte, *encryptedContentInfo, error) {
 	mode.CryptBlocks(cyphertext, plaintext)
 
 	// Prepare ASN.1 Encrypted Content Info
-	eci := encryptedContentInfo{
+	eci := EncryptedContentInfo{
 		ContentType: oidData,
 		ContentEncryptionAlgorithm: pkix.AlgorithmIdentifier{
 			Algorithm:  oidEncryptionAlgorithmDESEDE3CBC,
@@ -1234,6 +1260,60 @@ func encryptDESede(content []byte) ([]byte, *encryptedContentInfo, error) {
 	}
 
 	return key, &eci, nil
+}
+
+func ExchangeKeyEncrypt(content []byte, recipient *Certificate, contentEncryptionAlgorithm int) (eci *EncryptedContentInfo, rcptInfo *recipientInfo, err error) {
+	var key []byte
+
+	// Apply chosen symmetric encryption method
+	switch contentEncryptionAlgorithm {
+	case EncryptionAlgorithmAES256:
+		key, eci, err = encryptAES256(content)
+	case EncryptionAlgorithmSM4:
+		key, eci, err = encryptSM4(content)
+	case EncryptionAlgorithmDESCBC:
+		key, eci, err = encryptDESCBC(content)
+	case EncryptionAlgorithmDESede:
+		key, eci, err = encryptDESede(content)
+	case EncryptionAlgorithmSM1:
+		return nil, nil, errors.New("sm1 symm algorithm is not supported")
+	case EncryptionAlgorithmAES128GCM:
+		key, eci, err = encryptAES128GCM(content)
+
+	default:
+		return nil, nil, ErrUnsupportedEncryptionAlgorithm
+	}
+
+	if err != nil {
+		return nil, nil, err
+	}
+	// Prepare each recipient's encrypted cipher key
+	var haveSm2 bool = false
+
+	isSm2 := recipient.PublicKeyAlgorithm == RSA
+	haveSm2 = haveSm2 || isSm2
+	encrypted, err := encryptKeyEx(key, recipient)
+	if err != nil {
+		return nil, nil, err
+	}
+	ias, err := cert2issuerAndSerial(recipient)
+	if err != nil {
+		return nil, nil, err
+	}
+	encoid, err := getOIDForEncrypt(recipient.PublicKeyAlgorithm)
+	if err != nil {
+		return nil, nil, err
+	}
+	rcptInfo = &recipientInfo{
+		Version:               0,
+		IssuerAndSerialNumber: ias,
+		KeyEncryptionAlgorithm: pkix.AlgorithmIdentifier{
+			Algorithm: encoid,
+		},
+		EncryptedKey: encrypted,
+	}
+
+	return eci, rcptInfo, nil
 }
 
 // Encrypt creates and returns an envelope data PKCS7 structure with encrypted
@@ -1248,7 +1328,7 @@ func encryptDESede(content []byte) ([]byte, *encryptedContentInfo, error) {
 //
 // TODO(fullsailor): Add support for encrypting content with other algorithms
 func PKCS7Encrypt(content []byte, recipients []*Certificate, contentEncryptionAlgorithm int) ([]byte, error) {
-	var eci *encryptedContentInfo
+	var eci *EncryptedContentInfo
 	var key []byte
 	var err error
 

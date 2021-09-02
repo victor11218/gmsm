@@ -24,3 +24,13 @@ const (
 	RSA AsymmAlgType = iota - 1
 	SM2
 )
+
+type SymmAlgID int
+
+const (
+	SymmAlgIDSM1 = iota
+	SymmAlgIDSM4
+	SymmAlgIDDES
+	SymmAlgIDDESEDES
+	SymmAlgIDAES256
+)

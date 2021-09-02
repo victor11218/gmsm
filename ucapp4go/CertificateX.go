@@ -328,10 +328,13 @@ func (certx *CertificateX) GetPriKeyB64() (string, error) {
 	case x509.RSA:
 		derPri, err = x5092.MarshalPKCS8PrivateKey(certx.SecretKeyX.Key)
 	case x509.ECDSA:
+		bint := certx.SecretKeyX.Key.(*ecdsa.PrivateKey).D
+		println(bint)
 		derPri, err = x509.MarshalSm2PrivateKey(&sm2.PrivateKey{
 			PublicKey: sm2.PublicKey{
-				X: certx.SecretKeyX.Key.(*ecdsa.PrivateKey).PublicKey.X,
-				Y: certx.SecretKeyX.Key.(*ecdsa.PrivateKey).PublicKey.Y,
+				Curve: certx.SecretKeyX.Key.(*ecdsa.PrivateKey).Curve,
+				X:     certx.SecretKeyX.Key.(*ecdsa.PrivateKey).PublicKey.X,
+				Y:     certx.SecretKeyX.Key.(*ecdsa.PrivateKey).PublicKey.Y,
 			},
 			D: certx.SecretKeyX.Key.(*ecdsa.PrivateKey).D,
 		}, nil)
@@ -388,4 +391,77 @@ func (certx *CertificateX) GetPkcs1HashType() x509.Hash {
 
 func (certx *CertificateX) CreateCRL(rand io.Reader, revokedCerts []pkix.RevokedCertificate, now, expiry time.Time) (crlBytes []byte, err error) {
 	return certx.X509Cert.CreateCRL(rand, certx.SecretKeyX.Key, revokedCerts, now, expiry)
+}
+
+func (certx *CertificateX) GetP7B() ([]byte, error) {
+	certp := []*x509.Certificate{certx.X509Cert}
+	b, err := x509.NewP7B(certp)
+	if err != nil {
+		return nil, err
+	}
+	return b.DirectFinish()
+}
+
+type SM2EnvelopedKey struct {
+	SymmAlgID              pkix.AlgorithmIdentifier
+	SymmEncryptedKey       sm2.SM2Cipher
+	SM2PublicKey           []byte
+	SM2EncryptedPrivateKey []byte
+}
+
+func (certx *CertificateX) EncryptExchangeKeyWithSignCert(encodedPlainKey []byte) (string, error) {
+	eci, r, err := x509.ExchangeKeyEncrypt(encodedPlainKey, certx.X509Cert, GetEncryptionAlgorithmBySymmType(certx.EnvelopSymmType))
+	if err != nil {
+		return "", err
+	}
+	switch certx.X509Cert.PublicKeyAlgorithm {
+	case x509.RSA:
+		encodedEc, err := Base64Encode(eci.EncryptedContent.Bytes)
+		if err != nil {
+			return "", err
+		}
+		encodedEk, err := Base64Encode(r.EncryptedKey)
+		return encodedEk + "!!!" + encodedEc, nil
+	case x509.ECDSA:
+		pub := &sm2.PublicKey{
+			Curve: certx.X509Cert.PublicKey.(*ecdsa.PublicKey).Curve,
+			X:     certx.X509Cert.PublicKey.(*ecdsa.PublicKey).X,
+			Y:     certx.X509Cert.PublicKey.(*ecdsa.PublicKey).Y,
+		}
+		var sm2cipher sm2.SM2Cipher
+		_, err := asn1.Unmarshal(r.EncryptedKey, &sm2cipher)
+		if err != nil {
+			return "", err
+		}
+		sm2EnvelopedKey := SM2EnvelopedKey{
+			SymmAlgID:              eci.ContentEncryptionAlgorithm,
+			SymmEncryptedKey:       sm2cipher,
+			SM2PublicKey:           sm2.Compress(pub),
+			SM2EncryptedPrivateKey: eci.EncryptedContent.Bytes,
+		}
+		out, err := asn1.Marshal(sm2EnvelopedKey)
+		if err != nil {
+			return "", err
+		}
+		return Base64Encode(out)
+	case x509.SM2:
+		var sm2cipher sm2.SM2Cipher
+		_, err := asn1.Unmarshal(r.EncryptedKey, &sm2cipher)
+		if err != nil {
+			return "", err
+		}
+		sm2EnvelopedKey := SM2EnvelopedKey{
+			SymmAlgID:              eci.ContentEncryptionAlgorithm,
+			SymmEncryptedKey:       sm2cipher,
+			SM2PublicKey:           sm2.Compress(certx.X509Cert.PublicKey.(*sm2.PublicKey)),
+			SM2EncryptedPrivateKey: eci.EncryptedContent.Bytes,
+		}
+		out, err := asn1.Marshal(sm2EnvelopedKey)
+		if err != nil {
+			return "", err
+		}
+		return Base64Encode(out)
+	default:
+		return "", errors.New("invalid key type")
+	}
 }
