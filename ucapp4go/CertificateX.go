@@ -122,7 +122,7 @@ func CertificateXConstructorWithBase64String(strCertBase64 string, strSecretKeyB
 }
 
 func (certx *CertificateX) PKCS1Sign(pbPlainData []byte) ([]byte, error) {
-	return certx.SecretKeyX.PKCS1Sign(pbPlainData)
+	return certx.SecretKeyX.PKCS1Sign(pbPlainData,certx.Pkcs1HashType)
 }
 
 func (certx *CertificateX) PKCS1Verify(pbPlainData []byte, pbSignData []byte) error {

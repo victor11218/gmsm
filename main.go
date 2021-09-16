@@ -349,7 +349,7 @@ func main() {
 		return
 	}
 	log.Info(`RSA获取oid"` + oidk + `"的值为` + oidv24161171)
-	rsacertx.Pkcs1HashType = x509.SHA1
+	rsacertx.Pkcs1HashType = x509.SHA256
 	rsapkcs1sign, err := rsacertx.PKCS1Sign([]byte("1234567890"))
 	if err != nil {
 		log.Error("RSAPKCS1签名错误，" + err.Error())

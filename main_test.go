@@ -1,10 +1,15 @@
 package main
 
 import (
+	"crypto/x509/pkix"
+	"encoding/asn1"
 	"fmt"
 	"github.com/roy19831015/gmsm/log"
 	"github.com/roy19831015/gmsm/ucapp4go"
 	"github.com/roy19831015/gmsm/x509"
+	"io/ioutil"
+	"math/big"
+	"os"
 	"testing"
 )
 
@@ -64,4 +69,31 @@ func Test2(t *testing.T) {
 		return
 	}
 	println("out:" + out)
+}
+
+func Test3(t *testing.T) {
+	var crl pkix.CertificateList
+	file, err := os.Open("C:\\Users\\Roy\\OneDrive\\桌面\\crl (1).crl")
+	if err != nil {
+		log.Error("错误，" + err.Error())
+		return
+	}
+	all, err := ioutil.ReadAll(file)
+	if err != nil {
+		log.Error("错误，" + err.Error())
+		return
+	}
+	_, err = asn1.Unmarshal(all, &crl)
+	if err != nil {
+		log.Error("错误，" + err.Error())
+		return
+	}
+	no,_ :=big.NewInt(0).SetString("31AEFFD529775A2F52D66AEE8B1363E0",16)
+	for _, r := range crl.TBSCertList.RevokedCertificates {
+		if r.SerialNumber.Cmp(no)==0{
+			log.Info("CRL中找到该序列号")
+			return
+		}
+	}
+	log.Info("CRL中未找到该序列号")
 }

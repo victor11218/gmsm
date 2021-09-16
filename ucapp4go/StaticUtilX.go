@@ -47,7 +47,6 @@ type pkcs8 struct {
 }
 
 func PKCS1VerifyByPubKey(pbPlainData []byte, pbSignData []byte, userID []byte, pubKey crypto.PublicKey, hashType x509.Hash) error {
-	var err error
 	switch pubKey.(type) {
 	case *rsa.PublicKey:
 		pub := pubKey.(*rsa.PublicKey)
@@ -61,13 +60,13 @@ func PKCS1VerifyByPubKey(pbPlainData []byte, pbSignData []byte, userID []byte, p
 			return errors.New("stream write error in hash process")
 		}
 		hashed = hashHandle.Sum(nil)
-		err = rsa.VerifyPKCS1v15(pub, hashType.HashFunc(), hashed, pbSignData)
+		return rsa.VerifyPKCS1v15(pub, hashType.HashFunc(), hashed, pbSignData)
 	case *sm2.PublicKey:
 		pub := pubKey.(sm2.PublicKey)
 		if pub.Verify(pbPlainData, pbSignData) {
-			err = nil
+			return nil
 		} else {
-			err = errors.New("sm2 verify result is false")
+			return errors.New("sm2 verify result is false")
 		}
 	case *ecdsa.PublicKey:
 		pub := sm2.PublicKey{
@@ -76,14 +75,13 @@ func PKCS1VerifyByPubKey(pbPlainData []byte, pbSignData []byte, userID []byte, p
 			Y:     pubKey.(*ecdsa.PublicKey).Y,
 		}
 		if pub.Verify(pbPlainData, pbSignData) {
-			err = nil
+			return nil
 		} else {
-			err = errors.New("sm2 verify result is false")
+			return errors.New("sm2 verify result is false")
 		}
 	default:
 		return errors.New("invalid public key type")
 	}
-	return err
 }
 
 func PKCS1SignByPriKey(pbPlainData []byte, userID []byte, priKey crypto.PrivateKey, hashType x509.Hash) ([]byte, error) {

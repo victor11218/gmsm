@@ -16,7 +16,6 @@ type SecretKeyX struct {
 	Key           crypto.PrivateKey
 	CharSet       string
 	BuffLen       int
-	Pkcs1HashType x5092.Hash
 }
 
 func SecretKeyXConstructorWithInterface(key crypto.PrivateKey) (*SecretKeyX, error) {
@@ -27,7 +26,6 @@ func SecretKeyXConstructorWithInterface(key crypto.PrivateKey) (*SecretKeyX, err
 			Key:           key,
 			CharSet:       "UTF-8",
 			BuffLen:       1024 * 1024 * 1,
-			Pkcs1HashType: x5092.SHA256,
 		}, nil
 	case *sm2.PrivateKey, *ecdsa.PrivateKey:
 		return &SecretKeyX{
@@ -35,7 +33,6 @@ func SecretKeyXConstructorWithInterface(key crypto.PrivateKey) (*SecretKeyX, err
 			Key:           key,
 			CharSet:       "UTF-8",
 			BuffLen:       1024 * 1024 * 1,
-			Pkcs1HashType: x5092.SM3,
 		}, nil
 	default:
 		return nil, errors.New("invalid private key type")
@@ -54,7 +51,6 @@ func SecretKeyXConstructorWithByteArray(pbSecretKeyDER []byte) (*SecretKeyX, err
 			Key:           key,
 			CharSet:       "UTF-8",
 			BuffLen:       1024 * 1024 * 1,
-			Pkcs1HashType: x5092.SHA256,
 		}, nil
 	case *sm2.PrivateKey, *ecdsa.PrivateKey:
 		return &SecretKeyX{
@@ -62,15 +58,14 @@ func SecretKeyXConstructorWithByteArray(pbSecretKeyDER []byte) (*SecretKeyX, err
 			Key:           key,
 			CharSet:       "UTF-8",
 			BuffLen:       1024 * 1024 * 1,
-			Pkcs1HashType: x5092.SM3,
 		}, nil
 	default:
 		return nil, errors.New("invalid private key type")
 	}
 }
 
-func (skeyx *SecretKeyX) PKCS1Sign(pbPlainData []byte) ([]byte, error) {
-	return PKCS1SignByPriKey(pbPlainData, DefaultUID, skeyx.Key, skeyx.Pkcs1HashType)
+func (skeyx *SecretKeyX) PKCS1Sign(pbPlainData []byte, hash x5092.Hash) ([]byte, error) {
+	return PKCS1SignByPriKey(pbPlainData, DefaultUID, skeyx.Key, hash)
 }
 
 func (skeyx *SecretKeyX) PrivateDecrypt(pbEncData []byte) ([]byte, error) {
