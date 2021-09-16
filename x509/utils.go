@@ -51,7 +51,7 @@ func ReadPublicKeyFromPem(publicKeyPem []byte) (*sm2.PublicKey, error) {
 	if block == nil || block.Type != "PUBLIC KEY" {
 		return nil, errors.New("failed to decode public key")
 	}
-	return ParseSm2PublicKey(block.Bytes)
+	return parseSm2PublicKey(block.Bytes)
 }
 
 func WritePublicKeyToPem(key *sm2.PublicKey) ([]byte, error) {

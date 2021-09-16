@@ -25,6 +25,7 @@ import (
 	"crypto/sha1"
 	"crypto/sha256"
 	"crypto/sha512"
+	x5092 "crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
 	"errors"
@@ -149,7 +150,7 @@ func pbkdf(password, salt []byte, iter, keyLen int, h func() hash.Hash) []byte {
 	return dk[:keyLen]
 }
 
-func ParseSm2PublicKey(der []byte) (*sm2.PublicKey, error) {
+func parseSm2PublicKey(der []byte) (*sm2.PublicKey, error) {
 	var pubkey pkixPublicKey
 
 	if _, err := asn1.Unmarshal(der, &pubkey); err != nil {
@@ -166,6 +167,17 @@ func ParseSm2PublicKey(der []byte) (*sm2.PublicKey, error) {
 		Y:     y,
 	}
 	return &pub, nil
+}
+
+func ParsePublicKey(pubkeyAlg PublicKeyAlgorithm, der []byte) (interface{}, error) {
+	switch pubkeyAlg {
+	case RSA:
+		return x5092.ParsePKIXPublicKey(der)
+	case SM2:
+		return parseSm2PublicKey(der)
+	default:
+		return nil, errors.New("invalid parameter: publickeyalgorithm")
+	}
 }
 
 func MarshalSm2PublicKey(key *sm2.PublicKey) ([]byte, error) {

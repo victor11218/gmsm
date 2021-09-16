@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"crypto/rsa"
-	x5092 "crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
 	"github.com/gofrs/uuid"
@@ -107,7 +106,7 @@ func main() {
 		log.Error("SM2产生公钥后Base64解码错误，" + err.Error())
 		return
 	}
-	sm2PubKey, err := x509.ParseSm2PublicKey(sm2pbPubKeyData)
+	sm2PubKey, err := x509.ParsePublicKey(x509.SM2, sm2pbPubKeyData)
 	if err != nil {
 		log.Error("SM2产生公钥后Base64解析错误，" + err.Error())
 		return
@@ -291,7 +290,7 @@ func main() {
 		log.Error("RSA产生公钥后Base64解码错误，" + err.Error())
 		return
 	}
-	rsaPubKey, err := x5092.ParsePKIXPublicKey(rsapbPubKeyData)
+	rsaPubKey, err := x509.ParsePublicKey(x509.RSA, rsapbPubKeyData)
 	if err != nil {
 		log.Error("RSA产生公钥后Base64解析错误，" + err.Error())
 		return
