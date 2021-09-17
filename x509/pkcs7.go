@@ -1049,6 +1049,7 @@ const (
 	EncryptionAlgorithmDESede
 	EncryptionAlgorithmSM1
 	EncryptionAlgorithmRC4
+	EncryptionAlgorithmAES256EmptyIV
 )
 
 // ContentEncryptionAlgorithm determines the algorithm used to encrypt the
@@ -1258,6 +1259,38 @@ func encryptAES256(content []byte) ([]byte, *EncryptedContentInfo, error) {
 	return key, &eci, nil
 }
 
+func encryptAES256WithZeroIV(content []byte) ([]byte, *EncryptedContentInfo, error) {
+	// Create SM4 key & CBC IV
+	key := make([]byte, 32)
+	iv := make([]byte, aes.BlockSize)
+	_, err := rand.Read(key)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Encrypt padded content
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, nil, err
+	}
+	mode := cipher.NewCBCEncrypter(block, iv)
+	plaintext, err := pad(content, mode.BlockSize())
+	cyphertext := make([]byte, len(plaintext))
+	mode.CryptBlocks(cyphertext, plaintext)
+
+	// Prepare ASN.1 Encrypted Content Info
+	eci := EncryptedContentInfo{
+		ContentType: oidData,
+		ContentEncryptionAlgorithm: pkix.AlgorithmIdentifier{
+			Algorithm:  oidEncryptionAlgorithmAES256CBC,
+			Parameters: asn1.RawValue{Tag: 4, Bytes: iv},
+		},
+		EncryptedContent: marshalEncryptedContent(cyphertext),
+	}
+
+	return key, &eci, nil
+}
+
 func encryptDESede(content []byte) ([]byte, *EncryptedContentInfo, error) {
 	// Create SM4 key & CBC IV
 	key := make([]byte, 24)
@@ -1299,6 +1332,8 @@ func ExchangeKeyEncrypt(content []byte, recipient *Certificate, contentEncryptio
 
 	// Apply chosen symmetric encryption method
 	switch contentEncryptionAlgorithm {
+	case EncryptionAlgorithmAES256EmptyIV:
+		key, eci, err = encryptAES256WithZeroIV(content)
 	case EncryptionAlgorithmAES256:
 		key, eci, err = encryptAES256(content)
 	case EncryptionAlgorithmSM4:

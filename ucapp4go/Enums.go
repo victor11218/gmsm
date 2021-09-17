@@ -9,6 +9,7 @@ const (
 	DESede
 	SM1
 	RC4
+	AES256EmptyIV
 )
 
 //type HashType int

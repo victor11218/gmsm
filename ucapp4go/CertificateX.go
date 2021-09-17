@@ -414,6 +414,7 @@ func (certx *CertificateX) EncryptExchangeKeyWithSignCert(encodedPlainKey []byte
 	if err != nil {
 		return "", err
 	}
+
 	switch certx.X509Cert.PublicKeyAlgorithm {
 	case x509.RSA:
 		encodedEc, err := Base64Encode(eci.EncryptedContent.Bytes)
