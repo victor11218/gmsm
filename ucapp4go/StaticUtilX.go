@@ -363,6 +363,8 @@ func GetEncryptionAlgorithmBySymmType(symmType SymmType) int {
 		return x509.EncryptionAlgorithmDESede
 	case SM1:
 		return x509.EncryptionAlgorithmSM1
+	case RC4:
+		return x509.EncryptionAlgorithmRC4
 	default:
 		return -1
 	}

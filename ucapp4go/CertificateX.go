@@ -405,8 +405,8 @@ func (certx *CertificateX) GetP7B() ([]byte, error) {
 type SM2EnvelopedKey struct {
 	SymmAlgID              pkix.AlgorithmIdentifier
 	SymmEncryptedKey       sm2.SM2Cipher
-	SM2PublicKey           []byte
-	SM2EncryptedPrivateKey []byte
+	SM2PublicKey           asn1.BitString
+	SM2EncryptedPrivateKey asn1.BitString
 }
 
 func (certx *CertificateX) EncryptExchangeKeyWithSignCert(encodedPlainKey []byte) (string, error) {
@@ -436,8 +436,14 @@ func (certx *CertificateX) EncryptExchangeKeyWithSignCert(encodedPlainKey []byte
 		sm2EnvelopedKey := SM2EnvelopedKey{
 			SymmAlgID:              eci.ContentEncryptionAlgorithm,
 			SymmEncryptedKey:       sm2cipher,
-			SM2PublicKey:           sm2.Compress(pub),
-			SM2EncryptedPrivateKey: eci.EncryptedContent.Bytes,
+			SM2PublicKey:           asn1.BitString{
+				Bytes:     sm2.Compress(pub),
+				BitLength: 8*len(sm2.Compress(pub)),
+			} ,
+			SM2EncryptedPrivateKey: asn1.BitString{
+				Bytes: eci.EncryptedContent.Bytes,
+				BitLength:8*len(eci.EncryptedContent.Bytes),
+			},
 		}
 		out, err := asn1.Marshal(sm2EnvelopedKey)
 		if err != nil {
@@ -453,8 +459,14 @@ func (certx *CertificateX) EncryptExchangeKeyWithSignCert(encodedPlainKey []byte
 		sm2EnvelopedKey := SM2EnvelopedKey{
 			SymmAlgID:              eci.ContentEncryptionAlgorithm,
 			SymmEncryptedKey:       sm2cipher,
-			SM2PublicKey:           sm2.Compress(certx.X509Cert.PublicKey.(*sm2.PublicKey)),
-			SM2EncryptedPrivateKey: eci.EncryptedContent.Bytes,
+			SM2PublicKey:           asn1.BitString{
+				Bytes:     sm2.Compress(certx.X509Cert.PublicKey.(*sm2.PublicKey)),
+				BitLength: 8*len(sm2.Compress(certx.X509Cert.PublicKey.(*sm2.PublicKey))),
+			} ,
+			SM2EncryptedPrivateKey: asn1.BitString{
+				Bytes: eci.EncryptedContent.Bytes,
+				BitLength:8*len(eci.EncryptedContent.Bytes),
+			},
 		}
 		out, err := asn1.Marshal(sm2EnvelopedKey)
 		if err != nil {

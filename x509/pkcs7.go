@@ -9,6 +9,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/hmac"
 	"crypto/rand"
+	"crypto/rc4"
 	"crypto/rsa"
 	_ "crypto/sha1" // for crypto.SHA1
 	"crypto/x509/pkix"
@@ -533,6 +534,7 @@ var oidEncryptionAlgorithmAES256CBC = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 
 var oidEncryptionAlgorithmAES128GCM = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 1, 6}
 var oidEncryptionAlgorithmAES128CBC = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 1, 2}
 var oidEncryptionAlgorithmSM4 = asn1.ObjectIdentifier{1, 2, 156, 197, 1, 104}
+var oidEncryptionAlgorithmRC4 = asn1.ObjectIdentifier{1, 2, 840, 113549, 3, 4}
 var oidEncryptionAlgorithmSM1 = asn1.ObjectIdentifier{1, 2, 156, 197, 1, 102}
 
 func (eci EncryptedContentInfo) decrypt(key []byte) ([]byte, error) {
@@ -1046,6 +1048,7 @@ const (
 	EncryptionAlgorithmSM4
 	EncryptionAlgorithmDESede
 	EncryptionAlgorithmSM1
+	EncryptionAlgorithmRC4
 )
 
 // ContentEncryptionAlgorithm determines the algorithm used to encrypt the
@@ -1062,6 +1065,35 @@ const nonceSize = 12
 type aesGCMParameters struct {
 	Nonce  []byte `asn1:"tag:4"`
 	ICVLen int
+}
+
+func encryptRC4(content []byte) ([]byte, *EncryptedContentInfo, error) {
+	// Create SM4 key & CBC IV
+	key := make([]byte, 16)
+	_, err := rand.Read(key)
+	if err != nil {
+		return nil, nil, err
+	}
+	// Encrypt padded content
+	block, err := rc4.NewCipher(key)
+	if err != nil {
+		return nil, nil, err
+	}
+	plaintext := content
+	cyphertext := make([]byte, len(plaintext))
+	block.XORKeyStream(cyphertext, plaintext)
+
+	// Prepare ASN.1 Encrypted Content Info
+	eci := EncryptedContentInfo{
+		ContentType: oidData,
+		ContentEncryptionAlgorithm: pkix.AlgorithmIdentifier{
+			Algorithm:  oidEncryptionAlgorithmRC4,
+			Parameters: asn1.RawValue{Tag: 4, Bytes: nil},
+		},
+		EncryptedContent: marshalEncryptedContent(cyphertext),
+	}
+
+	return key, &eci, nil
 }
 
 func encryptAES128GCM(content []byte) ([]byte, *EncryptedContentInfo, error) {
@@ -1279,7 +1311,8 @@ func ExchangeKeyEncrypt(content []byte, recipient *Certificate, contentEncryptio
 		return nil, nil, errors.New("sm1 symm algorithm is not supported")
 	case EncryptionAlgorithmAES128GCM:
 		key, eci, err = encryptAES128GCM(content)
-
+	case EncryptionAlgorithmRC4:
+		key, eci, err = encryptRC4(content)
 	default:
 		return nil, nil, ErrUnsupportedEncryptionAlgorithm
 	}

@@ -8,6 +8,7 @@ const (
 	DES
 	DESede
 	SM1
+	RC4
 )
 
 //type HashType int
