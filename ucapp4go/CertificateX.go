@@ -175,6 +175,14 @@ func (certx *CertificateX) EnvOpen(pbEnvData []byte) ([]byte, error) {
 	return p7.Decrypt(certx.X509Cert, certx.SecretKeyX.Key)
 }
 
+func (certx *CertificateX) EnvOpenWithOutterDecryptor(pbEnvData []byte, decryptor x509.PKCS1Decryptor) ([]byte, error) {
+	p7, err := x509.ParsePKCS7(pbEnvData)
+	if err != nil {
+		return nil, err
+	}
+	return p7.DecryptByDecryptor(certx.X509Cert, decryptor)
+}
+
 func (certx *CertificateX) GetExtension(oid string) ([]byte, error) {
 	for _, ext := range certx.X509Cert.Extensions {
 		if ext.Id.String() == oid {

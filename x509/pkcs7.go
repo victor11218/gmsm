@@ -528,6 +528,27 @@ func (p7 *PKCS7) Decrypt(cert *Certificate, pk crypto.PrivateKey) ([]byte, error
 	return nil, ErrPKCS7UnsupportedAlgorithm
 }
 
+type PKCS1Decryptor interface{
+	DecryptPKCS1([]byte)([]byte, error)
+}
+
+// DecryptByDecryptor decrypts encrypted content info for recipient cert and outter private operate functions.
+func (p7 *PKCS7) DecryptByDecryptor(cert *Certificate, decryptor PKCS1Decryptor) ([]byte, error) {
+	data, ok := p7.raw.(envelopedData)
+	if !ok {
+		return nil, ErrNotEncryptedContent
+	}
+	recipient := selectRecipientForCertificate(data.RecipientInfos, cert)
+	if recipient.EncryptedKey == nil {
+		return nil, errors.New("pkcs7: no enveloped recipient for provided certificate")
+	}
+	contentKey, err := decryptor.DecryptPKCS1(recipient.EncryptedKey)
+	if err != nil {
+		return nil, err
+	}
+	return data.EncryptedContentInfo.decrypt(contentKey)
+}
+
 var oidEncryptionAlgorithmDESCBC = asn1.ObjectIdentifier{1, 3, 14, 3, 2, 7}
 var oidEncryptionAlgorithmDESEDE3CBC = asn1.ObjectIdentifier{1, 2, 840, 113549, 3, 7}
 var oidEncryptionAlgorithmAES256CBC = asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 1, 42}
