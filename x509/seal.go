@@ -128,9 +128,9 @@ func CreateSeal(usinfo *UserSealInfo, spInfo *SealProviderInfo) (*SESeal, error)
 			Name:         usinfo.SealName,
 			CertListType: 1,
 			CertList:     SesCertList{CertInfoList: MarshalCertificates(userCerts)},
-			CreateDate:   time.Time{},
-			ValidStart:   time.Time{},
-			ValidEnd:     time.Time{},
+			CreateDate:   time.Now(),
+			ValidStart:   usinfo.NotBefore,
+			ValidEnd:     usinfo.NotAfter,
 		},
 		Picture: SesESPictrueInfo{
 			Type:   usinfo.ImageInfo.Type,
