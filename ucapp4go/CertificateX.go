@@ -222,7 +222,11 @@ func (certx *CertificateX) GetContent() string {
 }
 
 func (certx *CertificateX) GetSerialNumber() string {
-	return certx.X509Cert.SerialNumber.Text(16)
+	sn := certx.X509Cert.SerialNumber.Text(16)
+	if certx.X509Cert.SerialNumber.Bytes()[0] > 0x7F {
+		sn = "00" + sn
+	}
+	return sn
 }
 
 func (certx *CertificateX) GetIssuer() string {
