@@ -122,7 +122,7 @@ func CertificateXConstructorWithBase64String(strCertBase64 string, strSecretKeyB
 }
 
 func (certx *CertificateX) PKCS1Sign(pbPlainData []byte) ([]byte, error) {
-	return certx.SecretKeyX.PKCS1Sign(pbPlainData,certx.Pkcs1HashType)
+	return certx.SecretKeyX.PKCS1Sign(pbPlainData, certx.Pkcs1HashType)
 }
 
 func (certx *CertificateX) PKCS1Verify(pbPlainData []byte, pbSignData []byte) error {
@@ -223,6 +223,12 @@ func (certx *CertificateX) GetContent() string {
 
 func (certx *CertificateX) GetSerialNumber() string {
 	sn := certx.X509Cert.SerialNumber.Text(16)
+	l := len(certx.X509Cert.SerialNumber.Bytes())*2 - len(sn)
+	sn2 := make([]rune, l)
+	for i, _ := range sn2 {
+		sn2[i] = '0'
+	}
+	sn = string(append(sn2, []rune(sn)...))
 	if certx.X509Cert.SerialNumber.Bytes()[0] > 0x7F {
 		sn = "00" + sn
 	}
@@ -447,15 +453,15 @@ func (certx *CertificateX) EncryptExchangeKeyWithSignCert(encodedPlainKey []byte
 			return "", err
 		}
 		sm2EnvelopedKey := SM2EnvelopedKey{
-			SymmAlgID:              eci.ContentEncryptionAlgorithm,
-			SymmEncryptedKey:       sm2cipher,
-			SM2PublicKey:           asn1.BitString{
+			SymmAlgID:        eci.ContentEncryptionAlgorithm,
+			SymmEncryptedKey: sm2cipher,
+			SM2PublicKey: asn1.BitString{
 				Bytes:     sm2.Compress(pub),
-				BitLength: 8*len(sm2.Compress(pub)),
-			} ,
+				BitLength: 8 * len(sm2.Compress(pub)),
+			},
 			SM2EncryptedPrivateKey: asn1.BitString{
-				Bytes: eci.EncryptedContent.Bytes,
-				BitLength:8*len(eci.EncryptedContent.Bytes),
+				Bytes:     eci.EncryptedContent.Bytes,
+				BitLength: 8 * len(eci.EncryptedContent.Bytes),
 			},
 		}
 		out, err := asn1.Marshal(sm2EnvelopedKey)
@@ -470,15 +476,15 @@ func (certx *CertificateX) EncryptExchangeKeyWithSignCert(encodedPlainKey []byte
 			return "", err
 		}
 		sm2EnvelopedKey := SM2EnvelopedKey{
-			SymmAlgID:              eci.ContentEncryptionAlgorithm,
-			SymmEncryptedKey:       sm2cipher,
-			SM2PublicKey:           asn1.BitString{
+			SymmAlgID:        eci.ContentEncryptionAlgorithm,
+			SymmEncryptedKey: sm2cipher,
+			SM2PublicKey: asn1.BitString{
 				Bytes:     sm2.Compress(certx.X509Cert.PublicKey.(*sm2.PublicKey)),
-				BitLength: 8*len(sm2.Compress(certx.X509Cert.PublicKey.(*sm2.PublicKey))),
-			} ,
+				BitLength: 8 * len(sm2.Compress(certx.X509Cert.PublicKey.(*sm2.PublicKey))),
+			},
 			SM2EncryptedPrivateKey: asn1.BitString{
-				Bytes: eci.EncryptedContent.Bytes,
-				BitLength:8*len(eci.EncryptedContent.Bytes),
+				Bytes:     eci.EncryptedContent.Bytes,
+				BitLength: 8 * len(eci.EncryptedContent.Bytes),
 			},
 		}
 		out, err := asn1.Marshal(sm2EnvelopedKey)
