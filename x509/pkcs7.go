@@ -279,8 +279,8 @@ func (p7 *PKCS7) VerifyWithPlainData(plainData []byte, certChain *CertPool, cert
 				points := cert.CRLDistributionPoints
 				for _, p := range points {
 					crl, err := downloadCRL(p)
-					if err != nil {
-						return err
+					if err != nil || crl == nil {
+						continue
 					}
 					certCRL = append(certCRL, crl)
 				}
@@ -295,7 +295,7 @@ func (p7 *PKCS7) VerifyWithPlainData(plainData []byte, certChain *CertPool, cert
 	}
 	for _, signer := range p7.Signers {
 		if verifyTime == nil {
-			attrArr := signer.AuthenticatedAttributes
+			attrArr := signer.UnauthenticatedAttributes
 			for _, attr := range attrArr {
 				if attr.Type.Equal(oidAttributeSigningTime) {
 					var signingTime time.Time
