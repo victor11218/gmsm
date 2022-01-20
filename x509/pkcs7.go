@@ -402,11 +402,13 @@ func verifySignature(p7 *PKCS7, signer signerInfo, certChain *CertPool, certCRL 
 		if err != nil {
 			return err
 		}
-		if certCRL != nil {
-			err = verifyCRL(cert, certCRL, verifyTime)
+	}
+	if certCRL != nil {
+		err = verifyCRL(cert, certCRL, verifyTime)
+		if err != nil {
+			return err
 		}
 	}
-
 	algo := getSignatureAlgorithmByHash(hash, signer.DigestEncryptionAlgorithm.Algorithm)
 	if algo == UnknownSignatureAlgorithm {
 		return ErrPKCS7UnsupportedAlgorithm

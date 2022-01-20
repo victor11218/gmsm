@@ -1,6 +1,7 @@
 package ucapp4go
 
 import (
+	"crypto/x509/pkix"
 	"github.com/roy19831015/gmsm/x509"
 )
 
@@ -8,7 +9,7 @@ type CertificateXAttribute struct {
 	SecretKeyX      *SecretKeyX
 	X509Cert        *x509.Certificate
 	CertChain       *x509.CertPool
-	CRL             *x509.CertPool
+	CRL             []*pkix.CertificateList
 	UserId          string
 	EnvelopSymmType SymmType
 	EmptyIV         bool
