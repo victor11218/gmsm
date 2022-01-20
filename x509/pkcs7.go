@@ -18,7 +18,11 @@ import (
 	"fmt"
 	"github.com/roy19831015/gmsm/sm2"
 	"github.com/roy19831015/gmsm/sm4"
+	"io"
+	"io/ioutil"
+	"log"
 	"math/big"
+	"net/http"
 	"sort"
 	"time"
 )
@@ -233,10 +237,33 @@ func (p7 *PKCS7) Verify(certChain *CertPool, certCRL []*pkix.CertificateList, ve
 	return nil
 }
 
+func downloadCRL(p string) (*pkix.CertificateList, error) {
+	resp, err := http.Get(p)
+	if err != nil {
+		return nil, err
+	}
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			log.Printf("pkcs7: Close error: %v", err)
+		}
+	}(resp.Body)
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCRL(body)
+}
+
+type VerifyOption struct {
+	VerifyChain bool
+	VerifyCRL   bool
+}
+
 // Verify checks the signatures of a PKCS7 object
 // WARNING: Verify does not check signing time or verify certificate chains at
 // this time.
-func (p7 *PKCS7) VerifyWithPlainData(plainData []byte, certChain *CertPool, certCRL []*pkix.CertificateList, verifyTime *time.Time) (err error) {
+func (p7 *PKCS7) VerifyWithPlainData(plainData []byte, certChain *CertPool, certCRL []*pkix.CertificateList, verifyTime *time.Time, opt VerifyOption) (err error) {
 	if len(p7.Signers) == 0 {
 		return errors.New("pkcs7: Message has no signers")
 	}
@@ -245,7 +272,42 @@ func (p7 *PKCS7) VerifyWithPlainData(plainData []byte, certChain *CertPool, cert
 	} else if plainData != nil && len(plainData) == 0 && bytes.Compare(p7.Content, plainData) != 0 {
 		return errors.New("given plainData is different from plainData in attached pkcs7Data")
 	}
+	if opt.VerifyCRL {
+		if certCRL == nil {
+			for _, cert := range p7.Certificates {
+				//downloadcrl
+				points := cert.CRLDistributionPoints
+				for _, p := range points {
+					crl, err := downloadCRL(p)
+					if err != nil {
+						return err
+					}
+					certCRL = append(certCRL, crl)
+				}
+			}
+		}
+	} else {
+		certCRL = nil
+	}
+
+	if !opt.VerifyChain {
+		certChain = nil
+	}
 	for _, signer := range p7.Signers {
+		if verifyTime == nil {
+			attrArr := signer.AuthenticatedAttributes
+			for _, attr := range attrArr {
+				if attr.Type.Equal(oidAttributeSigningTime) {
+					var signingTime time.Time
+					_, err := asn1.Unmarshal(attr.Value.Bytes, &signingTime)
+					if err != nil {
+						continue
+					}
+					verifyTime = &signingTime
+					break
+				}
+			}
+		}
 		if err := verifySignature(p7, signer, certChain, certCRL, verifyTime); err != nil {
 			return err
 		}
@@ -324,9 +386,12 @@ func verifySignature(p7 *PKCS7, signer signerInfo, certChain *CertPool, certCRL 
 		var tst PKCS7
 		err := p7.UnmarshalUnAttribute(oidAttributeTimeStampToken, &tst)
 		if err != nil {
-			return err
+			var st time.Time
+			err = p7.UnmarshalUnAttribute(oidAttributeSigningTime, &st)
+			if err != nil {
+				return err
+			}
 		}
-
 	}
 	cert := getCertFromCertsByIssuerAndSerial(p7.Certificates, signer.IssuerAndSerialNumber)
 	if cert == nil {
@@ -528,8 +593,8 @@ func (p7 *PKCS7) Decrypt(cert *Certificate, pk crypto.PrivateKey) ([]byte, error
 	return nil, ErrPKCS7UnsupportedAlgorithm
 }
 
-type PKCS1Decryptor interface{
-	DecryptPKCS1([]byte)([]byte, error)
+type PKCS1Decryptor interface {
+	DecryptPKCS1([]byte) ([]byte, error)
 }
 
 // DecryptByDecryptor decrypts encrypted content info for recipient cert and outter private operate functions.
@@ -823,8 +888,18 @@ func NewPKCS7SignedData(data []byte, pkcs1SignedData []byte, hashType Hash, sign
 		return nil, err
 	}
 	sigOid, err := GetOIDForSign(signCert.PublicKeyAlgorithm)
+
+	//
+	attrs := attributes{}
+	attrs.Add(oidAttributeSigningTime, time.Now())
+	attrArr, err := attrs.ForMarshaling()
+	if err != nil {
+		return nil, err
+	}
+	//
+
 	signer := signerInfo{
-		AuthenticatedAttributes:   nil,
+		UnauthenticatedAttributes: attrArr,
 		DigestAlgorithm:           pkix.AlgorithmIdentifier{Algorithm: algOid},
 		DigestEncryptionAlgorithm: pkix.AlgorithmIdentifier{Algorithm: sigOid},
 		IssuerAndSerialNumber:     ias,

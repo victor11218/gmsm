@@ -152,7 +152,10 @@ func (certx *CertificateX) PKCS7Verify(pbPlainData []byte, pbSignData []byte) er
 	if err != nil {
 		return err
 	}
-	return p7.VerifyWithPlainData(pbPlainData, nil, nil, nil)
+	return p7.VerifyWithPlainData(pbPlainData, nil, nil, nil, x509.VerifyOption{
+		VerifyChain: !certx.IgnoreChain,
+		VerifyCRL:   !certx.IgnoreCRL,
+	})
 }
 
 func (certx *CertificateX) PublicEncrypt(pbPlainData []byte) ([]byte, error) {
