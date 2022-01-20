@@ -30,10 +30,10 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
+	"encoding/base64"
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"github.com/roy19831015/gmsm/ucapp4go"
 	"hash"
 	"io"
 	"math/big"
@@ -1926,7 +1926,7 @@ func ParseCRL(crlBytes []byte) (*pkix.CertificateList, error) {
 	}
 	if crlBytes[0] == 'M' {
 		var err error
-		crlBytes, err = ucapp4go.Base64Decode(string(crlBytes))
+		crlBytes, err = base64.StdEncoding.DecodeString(string(crlBytes))
 		if err != nil {
 			return nil, err
 		}
