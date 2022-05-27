@@ -4,9 +4,9 @@ import (
 	"crypto/x509/pkix"
 	"encoding/asn1"
 	"fmt"
-	"github.com/roy19831015/gmsm/log"
-	"github.com/roy19831015/gmsm/ucapp4go"
-	"github.com/roy19831015/gmsm/x509"
+	"github.com/victor11218/gmsm/log"
+	"github.com/victor11218/gmsm/ucapp4go"
+	"github.com/victor11218/gmsm/x509"
 	"io/ioutil"
 	"math/big"
 	"os"
@@ -88,9 +88,9 @@ func Test3(t *testing.T) {
 		log.Error("错误，" + err.Error())
 		return
 	}
-	no,_ :=big.NewInt(0).SetString("31AEFFD529775A2F52D66AEE8B1363E0",16)
+	no, _ := big.NewInt(0).SetString("31AEFFD529775A2F52D66AEE8B1363E0", 16)
 	for _, r := range crl.TBSCertList.RevokedCertificates {
-		if r.SerialNumber.Cmp(no)==0{
+		if r.SerialNumber.Cmp(no) == 0 {
 			log.Info("CRL中找到该序列号")
 			return
 		}

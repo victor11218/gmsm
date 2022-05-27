@@ -11,9 +11,9 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
-	"github.com/roy19831015/gmsm/pkcs12"
-	"github.com/roy19831015/gmsm/sm2"
-	"github.com/roy19831015/gmsm/x509"
+	"github.com/victor11218/gmsm/pkcs12"
+	"github.com/victor11218/gmsm/sm2"
+	"github.com/victor11218/gmsm/x509"
 )
 
 func Base64Encode(pbData []byte) (string, error) {

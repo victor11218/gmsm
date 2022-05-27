@@ -11,8 +11,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/roy19831015/gmsm/sm2"
-	"github.com/roy19831015/gmsm/x509"
+	"github.com/victor11218/gmsm/sm2"
+	"github.com/victor11218/gmsm/x509"
 )
 
 func Test_P12Encrypt(t *testing.T) {

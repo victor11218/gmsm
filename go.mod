@@ -1,4 +1,4 @@
-module github.com/roy19831015/gmsm
+module github.com/victor11218/gmsm
 
 go 1.14
 

@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+//go:build single_cert
 // +build single_cert
 
 package gmtls
@@ -18,8 +19,8 @@ import (
 	"strconv"
 	"sync/atomic"
 
-	"github.com/roy19831015/gmsm/sm2"
-	"github.com/roy19831015/gmsm/x509"
+	"github.com/victor11218/gmsm/sm2"
+	"github.com/victor11218/gmsm/x509"
 )
 
 type clientHandshakeStateGM struct {

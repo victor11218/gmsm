@@ -13,7 +13,7 @@ import (
 	"encoding/asn1"
 	"errors"
 	"fmt"
-	"github.com/roy19831015/gmsm/sm2"
+	"github.com/victor11218/gmsm/sm2"
 	"math/big"
 )
 

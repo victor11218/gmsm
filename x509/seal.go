@@ -6,7 +6,7 @@ import (
 	"encoding/asn1"
 	"errors"
 	"github.com/gofrs/uuid"
-	"github.com/roy19831015/gmsm/sm2"
+	"github.com/victor11218/gmsm/sm2"
 	"strings"
 	"time"
 )
