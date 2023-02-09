@@ -6,7 +6,7 @@ import (
 	"crypto/des"
 	"errors"
 	"fmt"
-	"github.com/victor11218/gmsm/ucapp4go"
+	"github.com/roy19831015/gmsm/ucapp4go"
 	"os"
 	"strings"
 )

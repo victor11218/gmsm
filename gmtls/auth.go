@@ -23,7 +23,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/victor11218/gmsm/sm2"
+	"github.com/roy19831015/gmsm/sm2"
 )
 
 // pickSignatureAlgorithm selects a signature algorithm that is compatible with

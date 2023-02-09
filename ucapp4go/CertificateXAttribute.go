@@ -2,7 +2,7 @@ package ucapp4go
 
 import (
 	"crypto/x509/pkix"
-	"github.com/victor11218/gmsm/x509"
+	"github.com/roy19831015/gmsm/x509"
 )
 
 type CertificateXAttribute struct {
