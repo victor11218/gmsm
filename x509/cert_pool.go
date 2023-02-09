@@ -38,6 +38,7 @@ type CertPool struct {
 	bySubjectKeyId map[string][]int
 	byName         map[string][]int
 	certs          []*Certificate
+	GobEncode      string //方便gob.encode编码序列化，无意义
 }
 
 // NewCertPool returns a new, empty CertPool.
